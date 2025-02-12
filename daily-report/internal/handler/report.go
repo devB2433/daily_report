@@ -38,11 +38,12 @@ func CreateReport(c *gin.Context) {
 	}
 
 	// 2. 解析日报时间
-	reportTime, err := time.Parse("2006-01-02-15-04", req.ReportTime)
+	reportTime, err := time.Parse("2006-01-02 15:04", req.ReportTime)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "日报时间格式无效",
+			"error":   err.Error(),
 		})
 		return
 	}
@@ -58,6 +59,19 @@ func CreateReport(c *gin.Context) {
 	}
 
 	db := database.GetDB()
+
+	// 检查当天是否已经提交过日报
+	startOfDay := time.Date(reportTime.Year(), reportTime.Month(), reportTime.Day(), 0, 0, 0, 0, reportTime.Location())
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	var existingReport model.Report
+	if err := db.Where("user_id = ? AND date >= ? AND date < ?", userID, startOfDay, endOfDay).First(&existingReport).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("当天已经提交过日报（ID: %d），你需要先删除旧的日报，才能重新提交", existingReport.ID),
+		})
+		return
+	}
 
 	// 4. 开始事务
 	tx := db.Begin()
@@ -194,5 +208,245 @@ func GetReport(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    report,
+	})
+}
+
+// DeleteReport 删除日报
+func DeleteReport(c *gin.Context) {
+	id := c.Param("id")
+	userID, _ := c.Get("user_id")
+	db := database.GetDB()
+
+	// 开始事务
+	tx := db.Begin()
+	if tx.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "删除日报失败：无法开始事务",
+		})
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 先检查日报是否存在且属于当前用户
+	var report model.Report
+	if err := tx.Where("id = ? AND user_id = ?", id, userID).First(&report).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "日报不存在或无权删除",
+		})
+		return
+	}
+
+	// 删除相关的任务
+	if err := tx.Where("report_id = ?", id).Delete(&model.Task{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "删除日报任务失败",
+		})
+		return
+	}
+
+	// 删除日报
+	if err := tx.Delete(&report).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "删除日报失败",
+		})
+		return
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "删除日报失败：提交事务失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "日报删除成功",
+	})
+}
+
+// ReportSubmissionStatus 表示日报提交状态
+type ReportSubmissionStatus struct {
+	Date      string `json:"date"`
+	Submitted bool   `json:"submitted"`
+}
+
+// GetReportSubmissionStatus 获取日报提交状态
+func GetReportSubmissionStatus(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	year := c.Query("year")
+	month := c.Query("month")
+
+	if year == "" || month == "" {
+		now := time.Now()
+		year = fmt.Sprintf("%d", now.Year())
+		month = fmt.Sprintf("%02d", now.Month())
+	}
+
+	// 解析年月
+	yearNum, _ := time.Parse("2006", year)
+	monthNum, _ := time.Parse("01", month)
+
+	// 计算月份的开始和结束时间
+	startDate := time.Date(yearNum.Year(), monthNum.Month(), 1, 0, 0, 0, 0, time.Local)
+	endDate := startDate.AddDate(0, 1, 0)
+
+	db := database.GetDB()
+
+	// 获取该月所有的日报记录
+	var reports []model.Report
+	if err := db.Where("user_id = ? AND date >= ? AND date < ?", userID, startDate, endDate).
+		Select("date").
+		Find(&reports).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "获取日报记录失败",
+		})
+		return
+	}
+
+	// 创建提交记录映射
+	submittedDates := make(map[string]bool)
+	for _, report := range reports {
+		dateStr := report.Date.Format("2006-01-02")
+		submittedDates[dateStr] = true
+	}
+
+	// 生成当月所有工作日的状态
+	var result []ReportSubmissionStatus
+	currentDate := startDate
+	for currentDate.Before(endDate) {
+		// 跳过周末
+		if currentDate.Weekday() != time.Saturday && currentDate.Weekday() != time.Sunday {
+			dateStr := currentDate.Format("2006-01-02")
+			result = append(result, ReportSubmissionStatus{
+				Date:      dateStr,
+				Submitted: submittedDates[dateStr],
+			})
+		} else {
+			// 对于周末，只在提交了日报的情况下添加记录
+			dateStr := currentDate.Format("2006-01-02")
+			if submittedDates[dateStr] {
+				result = append(result, ReportSubmissionStatus{
+					Date:      dateStr,
+					Submitted: true,
+				})
+			}
+		}
+		currentDate = currentDate.AddDate(0, 0, 1)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    result,
+	})
+}
+
+// ProjectHoursStat 项目工时统计
+type ProjectHoursStat struct {
+	ProjectID   uint    `json:"project_id"`
+	ProjectName string  `json:"project_name"`
+	TotalHours  float64 `json:"total_hours"`
+}
+
+// DailyHoursStat 每日工时统计
+type DailyHoursStat struct {
+	Date         string             `json:"date"`
+	TotalHours   float64            `json:"total_hours"`
+	ProjectHours []ProjectHoursStat `json:"project_hours"`
+}
+
+// GetMonthlyStats 获取月度统计数据
+func GetMonthlyStats(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	year := c.Query("year")
+	month := c.Query("month")
+
+	if year == "" || month == "" {
+		now := time.Now()
+		year = fmt.Sprintf("%d", now.Year())
+		month = fmt.Sprintf("%02d", now.Month())
+	}
+
+	// 解析年月
+	yearNum, _ := time.Parse("2006", year)
+	monthNum, _ := time.Parse("01", month)
+
+	// 计算月份的开始和结束时间
+	startDate := time.Date(yearNum.Year(), monthNum.Month(), 1, 0, 0, 0, 0, time.Local)
+	endDate := startDate.AddDate(0, 1, 0)
+
+	db := database.GetDB()
+
+	// 1. 获取当月项目工时统计
+	var projectStats []ProjectHoursStat
+	err := db.Table("tasks").
+		Select("tasks.project_id, projects.name as project_name, SUM(tasks.hours) as total_hours").
+		Joins("JOIN reports ON tasks.report_id = reports.id").
+		Joins("JOIN projects ON tasks.project_id = projects.id").
+		Where("reports.user_id = ? AND reports.date >= ? AND reports.date < ?", userID, startDate, endDate).
+		Group("tasks.project_id").
+		Order("total_hours DESC").
+		Scan(&projectStats).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "获取项目统计失败",
+		})
+		return
+	}
+
+	// 2. 获取每日工时统计
+	var dailyStats []DailyHoursStat
+	currentDate := startDate
+	for currentDate.Before(endDate) {
+		dayStart := currentDate
+		dayEnd := currentDate.Add(24 * time.Hour)
+
+		var dayStats DailyHoursStat
+		dayStats.Date = currentDate.Format("2006-01-02")
+
+		// 获取当天的项目工时
+		var projectHours []ProjectHoursStat
+		err := db.Table("tasks").
+			Select("tasks.project_id, projects.name as project_name, SUM(tasks.hours) as total_hours").
+			Joins("JOIN reports ON tasks.report_id = reports.id").
+			Joins("JOIN projects ON tasks.project_id = projects.id").
+			Where("reports.user_id = ? AND reports.date >= ? AND reports.date < ?", userID, dayStart, dayEnd).
+			Group("tasks.project_id").
+			Scan(&projectHours).Error
+
+		if err == nil {
+			dayStats.ProjectHours = projectHours
+			// 计算当天总工时
+			for _, ph := range projectHours {
+				dayStats.TotalHours += ph.TotalHours
+			}
+		}
+
+		dailyStats = append(dailyStats, dayStats)
+		currentDate = currentDate.AddDate(0, 0, 1)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"project_stats": projectStats,
+			"daily_stats":   dailyStats,
+		},
 	})
 }

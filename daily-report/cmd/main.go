@@ -96,7 +96,10 @@ func setupRoutes(r *gin.Engine) {
 			{
 				reports.POST("", handler.CreateReport)
 				reports.GET("", handler.GetReports)
+				reports.GET("/status", handler.GetReportSubmissionStatus)
+				reports.GET("/stats/monthly", handler.GetMonthlyStats)
 				reports.GET("/:id", handler.GetReport)
+				reports.DELETE("/:id", handler.DeleteReport)
 			}
 		}
 	}

@@ -66,16 +66,13 @@
         <div class="card">
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table">
                         <thead>
                             <tr>
-                                <th>日期</th>
-                                <th>项目</th>
-                                <th>工作内容</th>
-                                <th>工作时长</th>
-                                <th>状态</th>
-                                <th>提交时间</th>
-                                <th>操作</th>
+                                <th style="width: 15%">日期</th>
+                                <th style="width: 65%">工作内容</th>
+                                <th style="width: 10%">总工时</th>
+                                <th style="width: 10%">操作</th>
                             </tr>
                         </thead>
                         <tbody id="reportList">
@@ -97,6 +94,30 @@
             return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
         }
 
+        // 删除日报
+        function deleteReport(id) {
+            if (!confirm('确定要删除这篇日报吗？此操作不可恢复。')) {
+                return;
+            }
+
+            fetch(`/api/reports/${id}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('日报删除成功');
+                    loadReports(); // 重新加载日报列表
+                } else {
+                    alert(data.message || '删除失败');
+                }
+            })
+            .catch(error => {
+                console.error('删除日报出错:', error);
+                alert('删除失败：' + error.message);
+            });
+        }
+
         // 加载日报列表
         function loadReports() {
             fetch('/api/reports')
@@ -106,25 +127,62 @@
                     if (data.success) {
                         const reportList = document.getElementById('reportList');
                         reportList.innerHTML = '';
+                        
+                        // 按日期对日报进行分组
+                        const reportsByDate = {};
                         data.data.forEach(report => {
-                            // 对于每个日报，处理其所有任务
+                            const date = formatDateTime(report.date).split(' ')[0]; // 只取日期部分
+                            if (!reportsByDate[date]) {
+                                reportsByDate[date] = {
+                                    id: report.ID,
+                                    tasks: [],
+                                    totalHours: 0,
+                                    submitted_at: report.submitted_at
+                                };
+                            }
+                            reportsByDate[date].tasks.push(...report.tasks);
                             report.tasks.forEach(task => {
-                                reportList.innerHTML += `
-                                    <tr>
-                                        <td>${formatDateTime(report.date)}</td>
-                                        <td>${task.project ? task.project.name : '-'}</td>
-                                        <td>${task.content}</td>
-                                        <td>${task.hours}小时</td>
-                                        <td>${getStatusBadge(report.status)}</td>
-                                        <td>${formatDateTime(report.submitted_at)}</td>
-                                        <td>
-                                            <button class="btn btn-sm btn-outline-primary" onclick="viewReport(${report.ID})">
+                                reportsByDate[date].totalHours += task.hours;
+                            });
+                        });
+
+                        // 按日期倒序排序
+                        const sortedDates = Object.keys(reportsByDate).sort().reverse();
+
+                        sortedDates.forEach(date => {
+                            const report = reportsByDate[date];
+                            const tasksHtml = report.tasks.map(task => `
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between">
+                                        <strong class="text-primary">${task.project ? task.project.name : '-'}</strong>
+                                        <span class="text-muted">${task.hours}小时</span>
+                                    </div>
+                                    <div class="text-muted">${task.content}</div>
+                                </div>
+                            `).join('');
+
+                            reportList.innerHTML += `
+                                <tr>
+                                    <td class="align-middle">
+                                        <div class="fw-bold">${date}</div>
+                                        <small class="text-muted">提交于 ${formatDateTime(report.submitted_at).split(' ')[1]}</small>
+                                    </td>
+                                    <td>${tasksHtml}</td>
+                                    <td class="align-middle text-center">
+                                        <span class="badge bg-primary">${report.totalHours}小时</span>
+                                    </td>
+                                    <td class="align-middle">
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="viewReport(${report.id})">
                                                 <i class="bi bi-eye"></i>
                                             </button>
-                                        </td>
-                                    </tr>
-                                `;
-                            });
+                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteReport(${report.id})">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
                         });
                     }
                 })

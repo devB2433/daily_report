@@ -149,6 +149,69 @@
         </div>
     </div>
 
+    <!-- 编辑项目模态框 -->
+    <div class="modal fade" id="editProjectModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑项目</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editProjectForm">
+                        <input type="hidden" id="editProjectId" name="id">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="editProjectName" class="form-label">项目名称</label>
+                                <input type="text" class="form-control" id="editProjectName" name="name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="editProjectCode" class="form-label">项目代号</label>
+                                <input type="text" class="form-control" id="editProjectCode" name="code" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editProjectDescription" class="form-label">项目描述</label>
+                            <textarea class="form-control" id="editProjectDescription" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="editProjectManager" class="form-label">项目经理</label>
+                                <input type="text" class="form-control" id="editProjectManager" name="manager">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="editProjectClient" class="form-label">客户名称</label>
+                                <input type="text" class="form-control" id="editProjectClient" name="client">
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="editStartDate" class="form-label">开始日期</label>
+                                <input type="date" class="form-control" id="editStartDate" name="start_date">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="editEndDate" class="form-label">结束日期</label>
+                                <input type="date" class="form-control" id="editEndDate" name="end_date">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editProjectStatus" class="form-label">项目状态</label>
+                            <select class="form-select" id="editProjectStatus" name="status">
+                                <option value="active">进行中</option>
+                                <option value="completed">已完成</option>
+                                <option value="suspended">已暂停</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="updateProject()">保存更改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -218,6 +281,88 @@
             return badges[status] || status;
         }
 
+        // 编辑项目
+        function editProject(id) {
+            // 获取项目详情
+            fetch(`/api/projects/${id}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const project = data.data;
+                        // 填充表单
+                        document.getElementById('editProjectId').value = project.ID;
+                        document.getElementById('editProjectName').value = project.name;
+                        document.getElementById('editProjectCode').value = project.code;
+                        document.getElementById('editProjectDescription').value = project.description || '';
+                        document.getElementById('editProjectManager').value = project.manager || '';
+                        document.getElementById('editProjectClient').value = project.client || '';
+                        document.getElementById('editStartDate').value = project.start_date || '';
+                        document.getElementById('editEndDate').value = project.end_date || '';
+                        document.getElementById('editProjectStatus').value = project.status;
+
+                        // 显示模态框
+                        const modal = new bootstrap.Modal(document.getElementById('editProjectModal'));
+                        modal.show();
+                    } else {
+                        alert(data.message || '获取项目信息失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('获取项目信息出错:', error);
+                    alert('获取项目信息失败：' + error.message);
+                });
+        }
+
+        // 更新项目
+        function updateProject() {
+            const form = document.getElementById('editProjectForm');
+            const formData = new FormData(form);
+            const data = {};
+            
+            // 获取表单数据并进行类型转换
+            data.name = formData.get('name');
+            data.code = formData.get('code');
+            data.description = formData.get('description');
+            data.manager = formData.get('manager');
+            data.client = formData.get('client');
+            data.start_date = formData.get('start_date') || null;
+            data.end_date = formData.get('end_date') || null;
+            data.status = formData.get('status');
+
+            const id = formData.get('id');
+            console.log('更新项目数据:', data); // 添加调试日志
+
+            fetch(`/api/projects/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                console.log('响应状态:', response.status); // 添加调试日志
+                return response.json();
+            })
+            .then(data => {
+                console.log('响应数据:', data); // 添加调试日志
+                if (data.success) {
+                    // 关闭模态框
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editProjectModal'));
+                    modal.hide();
+                    // 重新加载项目列表
+                    loadProjects();
+                    // 重置表单
+                    form.reset();
+                } else {
+                    alert(data.message || '更新项目失败');
+                }
+            })
+            .catch(error => {
+                console.error('更新项目出错:', error); // 添加调试日志
+                alert('更新项目失败：' + error.message);
+            });
+        }
+
         // 检查登录状态
         function checkLoginStatus() {
             fetch('/api/user/info')
@@ -246,11 +391,6 @@
             document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
             window.location.href = '/login';
         }
-
-        // 页面加载时检查登录状态
-        document.addEventListener('DOMContentLoaded', function() {
-            checkLoginStatus();
-        });
 
         // 提交项目
         function submitProject() {
@@ -283,6 +423,11 @@
                 alert('添加项目失败：' + error.message);
             });
         }
+
+        // 页面加载时检查登录状态
+        document.addEventListener('DOMContentLoaded', function() {
+            checkLoginStatus();
+        });
     </script>
 </body>
 </html> 
