@@ -1,0 +1,14 @@
+database:
+  driver: mysql
+  host: mysql
+  port: 3306
+  username: daily_report
+  password: daily_report_password
+  name: daily_report
+  charset: utf8mb4
+  parseTime: true
+  loc: Local
+
+server:
+  port: 8080
+  mode: debug  # debug or release 
