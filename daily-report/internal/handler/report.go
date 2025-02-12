@@ -450,3 +450,26 @@ func GetMonthlyStats(c *gin.Context) {
 		},
 	})
 }
+
+// 计算项目工时占比
+func calculateProjectHoursPercentage(projectHours []model.ProjectHoursStat) []map[string]interface{} {
+	var result []map[string]interface{}
+	var totalHours float64
+
+	// 计算总工时
+	for _, ph := range projectHours {
+		totalHours += ph.Hours
+	}
+
+	// 计算每个项目的工时占比
+	for _, ph := range projectHours {
+		percentage := (ph.Hours / totalHours) * 100
+		result = append(result, map[string]interface{}{
+			"name":       ph.ProjectName,
+			"hours":      ph.Hours,
+			"percentage": percentage,
+		})
+	}
+
+	return result
+}

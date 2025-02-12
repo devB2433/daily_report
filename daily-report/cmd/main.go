@@ -101,6 +101,13 @@ func setupRoutes(r *gin.Engine) {
 				reports.GET("/:id", handler.GetReport)
 				reports.DELETE("/:id", handler.DeleteReport)
 			}
+
+			// 统计分析相关（需要管理员权限）
+			analytics := authorized.Group("/analytics")
+			analytics.Use(handler.RootRequired())
+			{
+				analytics.GET("/summary", handler.GetAnalyticsSummary)
+			}
 		}
 	}
 
@@ -115,6 +122,17 @@ func setupRoutes(r *gin.Engine) {
 			projectPages.GET("", func(c *gin.Context) {
 				c.HTML(200, "projects.html", gin.H{
 					"title": "项目管理",
+				})
+			})
+		}
+
+		// 统计分析页面（需要管理员权限）
+		analyticsPages := authorized.Group("/analytics")
+		analyticsPages.Use(handler.RootRequired())
+		{
+			analyticsPages.GET("", func(c *gin.Context) {
+				c.HTML(200, "analytics.html", gin.H{
+					"title": "统计分析",
 				})
 			})
 		}

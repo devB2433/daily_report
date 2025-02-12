@@ -11,6 +11,10 @@
     <!-- 自定义样式 -->
     <link href="/static/css/style.css" rel="stylesheet">
     <style>
+        .navbar {
+            background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%) !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
         .task-item {
             border: 1px solid #dee2e6;
             border-radius: 0.25rem;
@@ -43,7 +47,7 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/">首页</a>
                     </li>
-                    <li class="nav-item">
+                    <li class="nav-item d-none" id="projectsLink">
                         <a class="nav-link" href="/projects">项目管理</a>
                     </li>
                     <li class="nav-item">
@@ -51,6 +55,9 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/reports">我的日报</a>
+                    </li>
+                    <li class="nav-item d-none" id="analyticsLink">
+                        <a class="nav-link" href="/analytics">统计分析</a>
                     </li>
                 </ul>
                 <!-- 用户信息/登录按钮 -->
@@ -285,6 +292,12 @@
                         document.getElementById('username').textContent = data.data.username;
                         document.getElementById('userDropdown').classList.remove('d-none');
                         document.getElementById('loginLink').classList.add('d-none');
+                        
+                        // 如果是管理员，显示相关链接
+                        if (data.data.role === 'admin') {
+                            document.getElementById('analyticsLink').classList.remove('d-none');
+                            document.getElementById('projectsLink').classList.remove('d-none');
+                        }
                     } else {
                         window.location.href = '/login';
                     }

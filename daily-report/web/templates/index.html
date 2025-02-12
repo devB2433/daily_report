@@ -160,7 +160,7 @@
                     <li class="nav-item">
                         <a class="nav-link active" href="/">首页</a>
                     </li>
-                    <li class="nav-item">
+                    <li class="nav-item d-none" id="projectsLink">
                         <a class="nav-link" href="/projects">项目管理</a>
                     </li>
                     <li class="nav-item">
@@ -168,6 +168,9 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/reports">我的日报</a>
+                    </li>
+                    <li class="nav-item d-none" id="analyticsLink">
+                        <a class="nav-link" href="/analytics">统计分析</a>
                     </li>
                 </ul>
                 <!-- 用户信息/登录按钮 -->
@@ -559,6 +562,12 @@
                         document.getElementById('username').textContent = data.data.username;
                         document.getElementById('userDropdown').classList.remove('d-none');
                         document.getElementById('loginLink').classList.add('d-none');
+                        
+                        // 如果是管理员，显示相关链接
+                        if (data.data.role === 'admin') {
+                            document.getElementById('analyticsLink').classList.remove('d-none');
+                            document.getElementById('projectsLink').classList.remove('d-none');
+                        }
                         
                         // 加载统计数据
                         loadStats();
