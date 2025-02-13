@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -346,5 +347,84 @@ func LogoutHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "退出登录成功",
+	})
+}
+
+// GetUsers 获取用户列表（仅管理员可用）
+func GetUsers(c *gin.Context) {
+	db := database.GetDB()
+	var users []model.User
+
+	// 查询所有用户，按用户名排序
+	if err := db.Select("id, username, email, role, last_login_at").Order("username ASC").Find(&users).Error; err != nil {
+		log.Printf("Failed to get users: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "获取用户列表失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    users,
+	})
+}
+
+// ResetUserPassword 重置用户密码（仅管理员可用）
+func ResetUserPassword(c *gin.Context) {
+	userID := c.Param("id")
+	var req struct {
+		NewPassword string `json:"new_password" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "请求数据无效",
+		})
+		return
+	}
+
+	// 验证密码强度
+	if !isPasswordStrong(req.NewPassword) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "密码必须包含大小写字母、数字和特殊字符，且长度至少为8位",
+		})
+		return
+	}
+
+	db := database.GetDB()
+	var user model.User
+	if err := db.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "用户不存在",
+		})
+		return
+	}
+
+	// 设置新密码
+	if err := user.SetPassword(req.NewPassword); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "密码重置失败",
+		})
+		return
+	}
+
+	// 保存更改
+	if err := db.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "密码重置失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "密码重置成功",
 	})
 }

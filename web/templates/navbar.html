@@ -1,0 +1,49 @@
+{{define "navbar"}}
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+        <a class="navbar-brand" href="/">工作管理系统</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/">首页</a>
+                </li>
+                {{if eq .User.Role "admin"}}
+                <li class="nav-item">
+                    <a class="nav-link" href="/projects">项目管理</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/users">用户管理</a>
+                </li>
+                {{end}}
+                <li class="nav-item">
+                    <a class="nav-link" href="/reports/new">写日报</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/reports">我的日报</a>
+                </li>
+                {{if eq .User.Role "admin"}}
+                <li class="nav-item">
+                    <a class="nav-link" href="/analytics">统计分析</a>
+                </li>
+                {{end}}
+            </ul>
+            <ul class="navbar-nav">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle"></i>
+                        {{.User.Username}}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="/profile">个人信息</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" onclick="handleLogout()">退出登录</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+{{end}} 

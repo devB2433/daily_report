@@ -95,6 +95,8 @@ func setupRoutes(r *gin.Engine) {
 				adminOnly.POST("/projects", handler.CreateProject)
 				adminOnly.PUT("/projects/:id", handler.UpdateProject)
 				adminOnly.DELETE("/projects/:id", handler.DeleteProject)
+				adminOnly.GET("/users", handler.GetUsers)
+				adminOnly.POST("/users/:id/reset-password", handler.ResetUserPassword)
 			}
 
 			authorized.GET("/projects/:id", handler.GetProject)
@@ -113,35 +115,98 @@ func setupRoutes(r *gin.Engine) {
 		username, _ := c.Cookie("username")
 		role, _ := c.Cookie("role")
 
-		c.HTML(http.StatusOK, "index.html", gin.H{
-			"title":    "工作管理系统",
-			"username": username,
-			"role":     role,
-			"isAdmin":  role == "admin",
-		})
+		// 添加日志
+		log.Printf("用户信息 - 用户名: %s, 角色: %s", username, role)
+
+		data := gin.H{
+			"title": "工作管理系统",
+			"User": gin.H{
+				"Username": username,
+				"Role":     role,
+			},
+			"isAdmin": role == "admin",
+		}
+
+		// 打印传递给模板的数据
+		log.Printf("传递给模板的数据: %+v", data)
+
+		c.HTML(http.StatusOK, "index.html", data)
 	})
 
 	r.GET("/projects", handler.AuthMiddleware(), func(c *gin.Context) {
+		username, _ := c.Cookie("username")
+		role, _ := c.Cookie("role")
+
 		c.HTML(http.StatusOK, "projects.html", gin.H{
 			"title": "项目管理",
+			"User": gin.H{
+				"Username": username,
+				"Role":     role,
+			},
+			"isAdmin": role == "admin",
 		})
 	})
 
 	r.GET("/analytics", handler.AuthMiddleware(), func(c *gin.Context) {
+		username, _ := c.Cookie("username")
+		role, _ := c.Cookie("role")
+
 		c.HTML(http.StatusOK, "analytics.html", gin.H{
 			"title": "统计分析",
+			"User": gin.H{
+				"Username": username,
+				"Role":     role,
+			},
+			"isAdmin": role == "admin",
 		})
 	})
 
 	r.GET("/reports/new", handler.AuthMiddleware(), func(c *gin.Context) {
+		username, _ := c.Cookie("username")
+		role, _ := c.Cookie("role")
+
 		c.HTML(http.StatusOK, "write_report.html", gin.H{
 			"title": "写日报",
+			"User": gin.H{
+				"Username": username,
+				"Role":     role,
+			},
+			"isAdmin": role == "admin",
 		})
 	})
 
 	r.GET("/reports", handler.AuthMiddleware(), func(c *gin.Context) {
+		username, _ := c.Cookie("username")
+		role, _ := c.Cookie("role")
+
 		c.HTML(http.StatusOK, "reports.html", gin.H{
 			"title": "我的日报",
+			"User": gin.H{
+				"Username": username,
+				"Role":     role,
+			},
+			"isAdmin": role == "admin",
+		})
+	})
+
+	// 修改用户管理页面路由，与项目管理保持一致
+	r.GET("/users", handler.AuthMiddleware(), func(c *gin.Context) {
+		username, _ := c.Cookie("username")
+		role, _ := c.Cookie("role")
+
+		// 检查是否为管理员
+		if role != "admin" {
+			c.Redirect(http.StatusFound, "/")
+			return
+		}
+
+		c.HTML(http.StatusOK, "users", gin.H{
+			"title": "用户管理",
+			"User": gin.H{
+				"Username": username,
+				"Role":     role,
+			},
+			"isAdmin": role == "admin",
 		})
 	})
 }
