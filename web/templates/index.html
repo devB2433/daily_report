@@ -30,6 +30,7 @@
             background-color: #f8f9fa;
             padding: 2px;
             border-radius: 4px;
+            height: calc(100% - 80px); /* 减去月份标题和星期标题的高度 */
         }
         .calendar-header {
             display: grid;
@@ -37,17 +38,18 @@
             gap: 2px;
             background-color: #f8f9fa;
             margin-bottom: 2px;
+            height: 30px;
         }
         .calendar-header div {
             text-align: center;
-            padding: 8px 0;
+            padding: 6px 0;
             font-size: 12px;
             font-weight: 500;
             color: #666;
             background-color: #fff;
         }
         .calendar-day {
-            aspect-ratio: 1;
+            aspect-ratio: auto;
             background-color: #fff;
             display: flex;
             flex-direction: column;
@@ -56,6 +58,7 @@
             position: relative;
             font-size: 14px;
             padding: 4px;
+            height: 100%;
         }
         .calendar-day.weekend {
             color: #999;
@@ -72,7 +75,7 @@
             width: 6px;
             height: 6px;
             border-radius: 50%;
-            margin-top: 4px;
+            margin-top: 2px;
         }
         .calendar-day .status-dot.submitted {
             background-color: #28a745;
@@ -84,10 +87,10 @@
             text-align: center;
             font-size: 16px;
             font-weight: 500;
-            padding: 12px;
+            padding: 10px;
             background-color: #fff;
             border-bottom: 1px solid #eee;
-            margin-bottom: 2px;
+            height: 45px;
         }
     </style>
 </head>
@@ -144,49 +147,54 @@
 
     <div class="container mt-4">
         <div class="row">
-            <!-- 每日工时图表和项目工时占比 -->
-            <div class="col-md-8">
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">每日工时统计</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="dailyHoursChart"></canvas>
+            <!-- 项目工时占比和日报提交日历 -->
+            <div class="col-md-12">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">项目工时占比</h5>
+                            </div>
+                            <div class="card-body" style="height: 350px;">
+                                <div class="chart-container">
+                                    <canvas id="projectHoursChart"></canvas>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">项目工时占比</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="projectHoursChart"></canvas>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">日报提交日历</h5>
+                            </div>
+                            <div class="card-body p-0" style="height: 350px;">
+                                <div id="calendarMonth" class="calendar-month"></div>
+                                <div class="calendar-header">
+                                    <div>日</div>
+                                    <div>一</div>
+                                    <div>二</div>
+                                    <div>三</div>
+                                    <div>四</div>
+                                    <div>五</div>
+                                    <div>六</div>
+                                </div>
+                                <div id="calendar" class="calendar-container"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 日历视图 -->
-            <div class="col-md-4">
+            <!-- 每日工时统计 -->
+            <div class="col-md-12 mt-4">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">日报提交日历</h5>
+                        <h5 class="card-title mb-0">每日工时统计</h5>
                     </div>
-                    <div class="card-body p-0">
-                        <div id="calendarMonth" class="calendar-month"></div>
-                        <div class="calendar-header">
-                            <div>日</div>
-                            <div>一</div>
-                            <div>二</div>
-                            <div>三</div>
-                            <div>四</div>
-                            <div>五</div>
-                            <div>六</div>
+                    <div class="card-body" style="height: 350px;">
+                        <div class="chart-container">
+                            <canvas id="dailyHoursChart"></canvas>
                         </div>
-                        <div id="calendar" class="calendar-container"></div>
                     </div>
                 </div>
             </div>
@@ -349,13 +357,7 @@
                             },
                             plugins: {
                                 title: {
-                                    display: true,
-                                    text: '每日项目工时分布',
-                                    font: {
-                                        size: 16,
-                                        weight: 'bold'
-                                    },
-                                    padding: 20
+                                    display: false
                                 },
                                 legend: {
                                     position: 'top',
@@ -539,13 +541,7 @@
                             cutout: '60%',
                             plugins: {
                                 title: {
-                                    display: true,
-                                    text: '本月项目工时分布',
-                                    font: {
-                                        size: 16,
-                                        weight: 'bold'
-                                    },
-                                    padding: 20
+                                    display: false
                                 },
                                 legend: {
                                     position: 'right',
