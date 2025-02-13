@@ -319,18 +319,22 @@
                             throw new Error('未找到模态框元素');
                         }
 
+                        // 重置表单
+                        document.getElementById('editProjectForm').reset();
+
                         // 填充表单数据
                         document.getElementById('editProjectId').value = project.ID;
-                        document.getElementById('editProjectName').value = project.name;
-                        document.getElementById('editProjectCode').value = project.code;
-                        document.getElementById('editProjectDescription').value = project.description;
-                        document.getElementById('editProjectManager').value = project.manager;
-                        document.getElementById('editProjectClient').value = project.client;
-                        document.getElementById('editStartDate').value = project.start_date;
-                        document.getElementById('editEndDate').value = project.end_date;
-                        document.getElementById('editProjectStatus').value = project.status;
+                        document.getElementById('editProjectName').value = project.name || '';
+                        document.getElementById('editProjectCode').value = project.code || '';
+                        document.getElementById('editProjectDescription').value = project.description || '';
+                        document.getElementById('editProjectManager').value = project.manager || '';
+                        document.getElementById('editProjectClient').value = project.client || '';
+                        document.getElementById('editStartDate').value = project.start_date || '';
+                        document.getElementById('editEndDate').value = project.end_date || '';
+                        document.getElementById('editProjectStatus').value = project.status || 'active';
 
-                        console.log('表单字段值：', {
+                        // 打印填充后的表单值，用于调试
+                        console.log('表单已填充，当前值：', {
                             id: document.getElementById('editProjectId').value,
                             name: document.getElementById('editProjectName').value,
                             code: document.getElementById('editProjectCode').value,
@@ -342,7 +346,7 @@
                             status: document.getElementById('editProjectStatus').value
                         });
 
-                        // 确保所有字段都已填充后再显示模态框
+                        // 显示模态框
                         const modal = new bootstrap.Modal(modalElement);
                         modal.show();
                         console.log('模态框已显示');
@@ -384,10 +388,11 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // 关闭模态框前，先将焦点移到一个安全的元素
-                    document.querySelector('.navbar-brand').focus();
-                    // 关闭模态框
+                    // 获取模态框实例
                     const modal = bootstrap.Modal.getInstance(document.getElementById('editProjectModal'));
+                    // 在隐藏模态框之前，将焦点移到一个安全的元素
+                    document.querySelector('.navbar-brand').focus();
+                    // 隐藏模态框
                     modal.hide();
                     // 重新加载项目列表
                     loadProjects();
@@ -469,10 +474,11 @@
             })
             .then(data => {
                 if (data.success) {
-                    // 关闭模态框前，先将焦点移到一个安全的元素
-                    document.querySelector('.navbar-brand').focus();
-                    // 关闭模态框
+                    // 获取模态框实例
                     const modal = bootstrap.Modal.getInstance(document.getElementById('addProjectModal'));
+                    // 在隐藏模态框之前，将焦点移到一个安全的元素
+                    document.querySelector('.navbar-brand').focus();
+                    // 隐藏模态框
                     modal.hide();
                     // 重新加载项目列表
                     loadProjects();
@@ -491,19 +497,15 @@
         document.addEventListener('DOMContentLoaded', function() {
             // 添加项目模态框
             const addProjectModal = document.getElementById('addProjectModal');
-            addProjectModal.addEventListener('hidden.bs.modal', function () {
-                // 模态框隐藏时，移除 aria-hidden 属性
-                this.removeAttribute('aria-hidden');
-                // 将焦点移到一个安全的元素
+            addProjectModal.addEventListener('hide.bs.modal', function () {
+                // 在模态框隐藏前，将焦点移到一个安全的元素
                 document.querySelector('.navbar-brand').focus();
             });
 
             // 编辑项目模态框
             const editProjectModal = document.getElementById('editProjectModal');
-            editProjectModal.addEventListener('hidden.bs.modal', function () {
-                // 模态框隐藏时，移除 aria-hidden 属性
-                this.removeAttribute('aria-hidden');
-                // 将焦点移到一个安全的元素
+            editProjectModal.addEventListener('hide.bs.modal', function () {
+                // 在模态框隐藏前，将焦点移到一个安全的元素
                 document.querySelector('.navbar-brand').focus();
             });
 
@@ -511,12 +513,6 @@
             addProjectModal.addEventListener('show.bs.modal', function () {
                 // 确保表单重置
                 document.getElementById('addProjectForm').reset();
-            });
-
-            // 编辑项目模态框显示时的处理
-            editProjectModal.addEventListener('show.bs.modal', function () {
-                // 确保表单重置
-                document.getElementById('editProjectForm').reset();
             });
         });
 

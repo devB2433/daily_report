@@ -181,9 +181,11 @@
 
         // 生成项目选项
         function generateProjectOptions() {
-            return projectList.map(project => 
-                `<option value="${project.ID}">${project.name}</option>`
-            ).join('');
+            return projectList
+                .filter(project => project.status !== 'completed') // 过滤掉已完成的项目
+                .map(project => 
+                    `<option value="${project.ID}">${project.name}${project.status === 'suspended' ? ' (已暂停)' : ''}</option>`
+                ).join('');
         }
 
         // 加载项目列表
@@ -193,7 +195,7 @@
                 .then(data => {
                     console.log('项目列表数据:', data);
                     if (data.success) {
-                        projectList = data.data;
+                        projectList = data.data.filter(project => project.status !== 'completed'); // 过滤掉已完成的项目
                         const options = generateProjectOptions();
                         document.querySelectorAll('.project-select').forEach(select => {
                             select.innerHTML = '<option value="">请选择项目</option>' + options;
