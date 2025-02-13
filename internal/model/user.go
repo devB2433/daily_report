@@ -1,6 +1,7 @@
 package model
 
 import (
+	"log"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -20,24 +21,28 @@ type User struct {
 
 // SetPassword 设置用户密码
 func (u *User) SetPassword(password string) error {
+	log.Printf("正在为用户 %s 设置密码", u.Username)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
+		log.Printf("生成密码哈希失败: %v", err)
 		return err
 	}
-	u.Password = string(hashedPassword)
+	log.Printf("生成的密码哈希: %s", string(hashedPassword))
+	u.Password = password
 	u.PasswordHash = string(hashedPassword)
 	return nil
 }
 
 // CheckPassword 检查密码是否正确
 func (u *User) CheckPassword(password string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
-	if err == nil {
-		return true
+	log.Printf("正在验证密码 - 用户: %s", u.Username)
+	log.Printf("存储的密码哈希: %s", u.PasswordHash)
+	err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password))
+	if err != nil {
+		log.Printf("密码验证失败 - 错误: %v", err)
+		return false
 	}
-	// 如果使用 Password 字段验证失败，尝试使用 PasswordHash 字段
-	err = bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password))
-	return err == nil
+	return true
 }
 
 // BeforeCreate GORM的钩子，在创建用户前执行
