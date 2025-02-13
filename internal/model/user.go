@@ -10,11 +10,12 @@ import (
 // User 用户模型
 type User struct {
 	gorm.Model
-	Username    string     `gorm:"uniqueIndex;size:50;not null" json:"username"`
-	Password    string     `gorm:"size:255;not null" json:"-"`
-	Email       string     `gorm:"size:100" json:"email"`
-	Role        string     `gorm:"size:20;default:'user'" json:"role"` // admin or user
-	LastLoginAt *time.Time `gorm:"default:null" json:"last_login_at"`  // 使用指针类型，允许为null
+	Username     string     `gorm:"uniqueIndex;size:50;not null" json:"username"`
+	Password     string     `gorm:"size:255;not null" json:"-"`
+	PasswordHash string     `gorm:"column:password_hash;size:255;not null" json:"-"`
+	Email        string     `gorm:"size:100" json:"email"`
+	Role         string     `gorm:"size:20;default:'user'" json:"role"` // admin or user
+	LastLoginAt  *time.Time `gorm:"default:null" json:"last_login_at"`  // 使用指针类型，允许为null
 }
 
 // SetPassword 设置用户密码
@@ -24,12 +25,18 @@ func (u *User) SetPassword(password string) error {
 		return err
 	}
 	u.Password = string(hashedPassword)
+	u.PasswordHash = string(hashedPassword)
 	return nil
 }
 
 // CheckPassword 检查密码是否正确
 func (u *User) CheckPassword(password string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
+	if err == nil {
+		return true
+	}
+	// 如果使用 Password 字段验证失败，尝试使用 PasswordHash 字段
+	err = bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password))
 	return err == nil
 }
 

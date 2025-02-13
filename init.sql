@@ -2,14 +2,46 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
--- 创建默认管理员用户
--- 密码为: Admin@123 (已经过bcrypt加密)
-INSERT INTO users (username, email, password, role, created_at, updated_at) VALUES 
-('admin', 'admin@blingsec.cn', '$2a$10$QOJ1Z6PFr5Qx5pZnJ5vC9.wVJJwlh5FFY5UOvTxNvZ7wxQwPUm3Hy', 'admin', NOW(), NOW());
+-- 创建用户表
+CREATE TABLE IF NOT EXISTS users (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(255) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'user',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 创建项目表
+CREATE TABLE IF NOT EXISTS projects (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 创建任务表
+CREATE TABLE IF NOT EXISTS tasks (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    project_id BIGINT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    priority VARCHAR(50) NOT NULL DEFAULT 'medium',
+    assigned_to BIGINT,
+    created_by BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (assigned_to) REFERENCES users(id),
+    FOREIGN KEY (created_by) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 创建示例项目
-INSERT INTO projects (name, code, description, manager, client, status, created_at, updated_at) VALUES
-('示例项目1', 'DEMO-001', '这是一个示例项目', '项目经理', '客户A', 'active', NOW(), NOW()),
-('示例项目2', 'DEMO-002', '这是另一个示例项目', '项目经理', '客户B', 'active', NOW(), NOW());
+INSERT INTO projects (name, description) VALUES 
+('示例项目', '这是一个示例项目，用于演示系统功能。');
 
-SET FOREIGN_KEY_CHECKS = 1; 
+SET FOREIGN_KEY_CHECKS = 1;
