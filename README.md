@@ -37,7 +37,7 @@ docker-compose up -d
 - 地址：http://localhost:8080
 - 默认管理员账号：
   - 邮箱：admin@blingsec.cn
-  - 密码：Admin@123
+  - 密码：Kj#9mP$2nL5vB@8x
 
 ### 手动部署
 
