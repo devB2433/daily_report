@@ -2,13 +2,16 @@ package handler
 
 import (
 	"fmt"
+	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"daily-report/internal/database"
 	"daily-report/internal/model"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // ReportItem 表示一个工作项
@@ -26,9 +29,12 @@ type CreateReportRequest struct {
 
 // CreateReport 创建日报
 func CreateReport(c *gin.Context) {
+	log.Printf("开始处理日报创建请求")
+
 	// 1. 解析请求数据
 	var req CreateReportRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("请求数据解析失败: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "请求数据无效",
@@ -36,10 +42,12 @@ func CreateReport(c *gin.Context) {
 		})
 		return
 	}
+	log.Printf("成功解析请求数据: %+v", req)
 
 	// 2. 解析日报时间
 	reportTime, err := time.Parse("2006-01-02 15:04", req.ReportTime)
 	if err != nil {
+		log.Printf("日报时间解析失败: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "日报时间格式无效",
@@ -47,16 +55,42 @@ func CreateReport(c *gin.Context) {
 		})
 		return
 	}
+	log.Printf("成功解析日报时间: %v", reportTime)
 
 	// 3. 获取当前用户ID
-	userID, exists := c.Get("user_id")
+	userIDStr, exists := c.Get("user_id")
 	if !exists {
+		log.Printf("未找到用户ID")
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
 			"message": "未登录",
 		})
 		return
 	}
+
+	// 转换用户ID为uint
+	userID, ok := userIDStr.(string)
+	if !ok {
+		log.Printf("用户ID类型转换失败")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "用户ID格式错误",
+		})
+		return
+	}
+
+	// 将字符串ID转换为uint
+	uid, err := strconv.ParseUint(userID, 10, 64)
+	if err != nil {
+		log.Printf("用户ID转换失败: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "用户ID无效",
+		})
+		return
+	}
+
+	log.Printf("当前用户ID: %v", uid)
 
 	db := database.GetDB()
 
@@ -65,10 +99,18 @@ func CreateReport(c *gin.Context) {
 	endOfDay := startOfDay.Add(24 * time.Hour)
 
 	var existingReport model.Report
-	if err := db.Where("user_id = ? AND date >= ? AND date < ?", userID, startOfDay, endOfDay).First(&existingReport).Error; err == nil {
+	if err := db.Where("user_id = ? AND date >= ? AND date < ?", uid, startOfDay, endOfDay).First(&existingReport).Error; err == nil {
+		log.Printf("当天已存在日报记录: ID=%d", existingReport.ID)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": fmt.Sprintf("当天已经提交过日报（ID: %d），你需要先删除旧的日报，才能重新提交", existingReport.ID),
+		})
+		return
+	} else if err != gorm.ErrRecordNotFound {
+		log.Printf("查询已存在日报时发生错误: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "系统错误，请稍后重试",
 		})
 		return
 	}
@@ -76,44 +118,57 @@ func CreateReport(c *gin.Context) {
 	// 4. 开始事务
 	tx := db.Begin()
 	if tx.Error != nil {
+		log.Printf("开始事务失败: %v", tx.Error)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "创建日报失败：无法开始事务",
 		})
 		return
 	}
+
+	var success bool
 	defer func() {
 		if r := recover(); r != nil {
+			log.Printf("发生panic，回滚事务: %v", r)
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "系统错误，请稍后重试",
+			})
+		} else if !success {
 			tx.Rollback()
 		}
 	}()
 
 	// 5. 创建日报记录
 	report := model.Report{
-		UserID:      userID.(uint),
+		UserID:      uint(uid),
 		Date:        reportTime,
 		Status:      "submitted",
 		SubmittedAt: time.Now(),
 	}
 
 	if err := tx.Create(&report).Error; err != nil {
-		tx.Rollback()
+		log.Printf("创建日报记录失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": fmt.Sprintf("创建日报失败：%v", err),
 		})
 		return
 	}
+	log.Printf("成功创建日报记录: ID=%d", report.ID)
 
 	// 6. 创建工作项
-	for _, item := range req.Items {
+	for i, item := range req.Items {
+		log.Printf("处理工作项 %d: ProjectID=%d, Hours=%.1f", i+1, item.ProjectID, item.Hours)
+
 		// 验证项目是否存在且处于活动状态
 		var project model.Project
-		if err := tx.Where("id = ? AND status = ?", item.ProjectID, "active").First(&project).Error; err != nil {
-			tx.Rollback()
+		if err := tx.Where("id = ? AND status IN (?)", item.ProjectID, []string{"active", "completed"}).First(&project).Error; err != nil {
+			log.Printf("项目验证失败: %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
-				"message": fmt.Sprintf("项目不存在或已关闭：%d", item.ProjectID),
+				"message": fmt.Sprintf("项目不存在或已暂停：%d", item.ProjectID),
 			})
 			return
 		}
@@ -127,32 +182,38 @@ func CreateReport(c *gin.Context) {
 		}
 
 		if err := tx.Create(&task).Error; err != nil {
-			tx.Rollback()
+			log.Printf("创建工作项失败: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"success": false,
 				"message": fmt.Sprintf("创建工作项失败：%v", err),
 			})
 			return
 		}
+		log.Printf("成功创建工作项: ID=%d", task.ID)
 	}
 
 	// 7. 提交事务
 	if err := tx.Commit().Error; err != nil {
+		log.Printf("提交事务失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": fmt.Sprintf("提交日报失败：%v", err),
 		})
 		return
 	}
+	log.Printf("事务提交成功")
 
 	// 8. 返回成功响应
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"success": true,
 		"message": "日报提交成功",
 		"data": gin.H{
 			"id": report.ID,
 		},
-	})
+	}
+	log.Printf("返回成功响应: %+v", response)
+	success = true
+	c.JSON(http.StatusOK, response)
 }
 
 // GetReports 获取日报列表

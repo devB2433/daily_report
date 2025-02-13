@@ -204,88 +204,15 @@
                 });
         }
 
-        // 提交日报
-        document.getElementById('reportForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const tasks = [];
-            const taskItems = document.querySelectorAll('.task-item');
-            
-            for (const item of taskItems) {
-                const projectId = item.querySelector('.project-select').value;
-                const hours = item.querySelector('.work-hours').value;
-                const content = item.querySelector('.work-content').value.trim();
-
-                if (!projectId) {
-                    alert('请选择项目');
-                    return;
-                }
-
-                if (!hours || hours < 0.5 || hours > 24) {
-                    alert('工作时长必须在0.5到24小时之间');
-                    return;
-                }
-
-                if (!content) {
-                    alert('请填写工作内容');
-                    return;
-                }
-
-                tasks.push({
-                    project_id: Number(projectId),
-                    hours: parseFloat(hours),
-                    content: content
-                });
-            }
-
-            const formData = {
-                report_time: document.getElementById('reportTime').value,
-                items: tasks
-            };
-
-            console.log('提交的数据:', formData);
-
-            fetch('/api/reports', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(formData)
-            })
-            .then(response => {
-                console.log('响应状态:', response.status);
-                return response.json();
-            })
-            .then(data => {
-                console.log('响应数据:', data);
-                if (data.success) {
-                    alert('日报提交成功！');
-                    window.location.href = '/reports';
-                } else {
-                    alert(data.message + (data.error ? ': ' + data.error : ''));
-                }
-            })
-            .catch(error => {
-                console.error('提交错误:', error);
-                alert('提交失败：' + error.message);
-            });
-        });
-
-        // 格式化日期时间
-        function formatDateTime(date) {
-            const pad = (num) => String(num).padStart(2, '0');
-            const year = date.getFullYear();
-            const month = pad(date.getMonth() + 1);
-            const day = pad(date.getDate());
-            const hours = pad(date.getHours());
-            const minutes = pad(date.getMinutes());
-            return `${year}-${month}-${day} ${hours}:${minutes}`;
-        }
-
         // 检查登录状态
         function checkLoginStatus() {
             fetch('/api/user/info')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('未登录或会话已过期');
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.success) {
                         // 显示用户信息
@@ -299,19 +226,182 @@
                             document.getElementById('projectsLink').classList.remove('d-none');
                         }
                     } else {
-                        window.location.href = '/login';
+                        throw new Error(data.message || '获取用户信息失败');
                     }
                 })
                 .catch(error => {
-                    console.error('Error checking login status:', error);
+                    console.error('登录状态检查失败:', error);
+                    // 清除所有认证相关的cookie
+                    document.cookie.split(';').forEach(cookie => {
+                        const [name] = cookie.split('=');
+                        document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
+                    });
                     window.location.href = '/login';
                 });
         }
 
         // 处理退出登录
         function handleLogout() {
-            document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-            window.location.href = '/login';
+            fetch('/api/logout', {
+                method: 'POST',
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('退出登录失败');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // 清除所有认证相关的cookie
+                    document.cookie.split(';').forEach(cookie => {
+                        const [name] = cookie.split('=');
+                        document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
+                    });
+                    window.location.href = '/login';
+                } else {
+                    throw new Error(data.message || '退出登录失败');
+                }
+            })
+            .catch(error => {
+                console.error('退出登录失败:', error);
+                alert('退出登录失败: ' + error.message);
+            });
+        }
+
+        // 提交日报
+        document.getElementById('reportForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // 首先检查登录状态
+            fetch('/api/user/info')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('未登录或会话已过期');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error('用户认证失败');
+                    }
+                    
+                    // 继续提交日报
+                    const tasks = [];
+                    const taskItems = document.querySelectorAll('.task-item');
+
+                    for (const item of taskItems) {
+                        const projectId = item.querySelector('.project-select').value;
+                        const hours = item.querySelector('.work-hours').value;
+                        const content = item.querySelector('.work-content').value.trim();
+
+                        if (!projectId) {
+                            throw new Error('请选择项目');
+                        }
+
+                        if (!hours || hours < 0.5 || hours > 24) {
+                            throw new Error('工作时长必须在0.5到24小时之间');
+                        }
+
+                        if (!content) {
+                            throw new Error('请填写工作内容');
+                        }
+
+                        tasks.push({
+                            project_id: parseInt(projectId),
+                            hours: parseFloat(hours),
+                            content: content
+                        });
+                    }
+
+                    const submitData = {
+                        report_time: document.getElementById('reportTime').value,
+                        items: tasks
+                    };
+
+                    console.log('提交的数据:', submitData);
+
+                    return fetch('/api/reports', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(submitData)
+                    });
+                })
+                .then(response => {
+                    console.log('响应状态:', response.status);
+                    console.log('响应头:', Object.fromEntries(response.headers.entries()));
+                    
+                    // 检查响应状态
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            console.log('错误响应内容:', text);
+                            try {
+                                if (text) {
+                                    const errorData = JSON.parse(text);
+                                    throw new Error(errorData.message || errorData.error || '提交失败');
+                                } else {
+                                    throw new Error('服务器返回空响应');
+                                }
+                            } catch (e) {
+                                if (e instanceof SyntaxError) {
+                                    throw new Error(`服务器响应格式错误: ${text}`);
+                                }
+                                throw e;
+                            }
+                        });
+                    }
+                    
+                    // 处理成功响应
+                    return response.text().then(text => {
+                        console.log('成功响应内容:', text);
+                        if (!text) {
+                            throw new Error('服务器返回空响应');
+                        }
+                        try {
+                            return JSON.parse(text);
+                        } catch (e) {
+                            console.error('JSON解析错误:', e);
+                            console.error('响应内容:', text);
+                            throw new Error('服务器响应格式错误');
+                        }
+                    });
+                })
+                .then(result => {
+                    if (!result) {
+                        throw new Error('处理响应失败');
+                    }
+                    console.log('处理响应:', result);
+                    if (result.success) {
+                        alert('日报提交成功！');
+                        window.location.href = '/reports';
+                    } else {
+                        throw new Error(result.message || '提交失败，请重试');
+                    }
+                })
+                .catch(error => {
+                    console.error('提交错误:', error);
+                    if (error.message.includes('未登录') || error.message.includes('会话已过期')) {
+                        window.location.href = '/login';
+                    } else {
+                        alert('提交失败: ' + error.message);
+                    }
+                });
+        });
+
+        // 格式化日期时间
+        function formatDateTime(date) {
+            const pad = (num) => String(num).padStart(2, '0');
+            const year = date.getFullYear();
+            const month = pad(date.getMonth() + 1);
+            const day = pad(date.getDate());
+            const hours = pad(date.getHours());
+            const minutes = pad(date.getMinutes());
+            return `${year}-${month}-${day} ${hours}:${minutes}`;
         }
 
         // 页面加载时的初始化

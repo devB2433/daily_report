@@ -1,0 +1,44 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+# 只监视这些目录的文件变化
+include_dir = ["cmd", "internal", "web"]
+# 忽略这些目录
+exclude_dir = ["tmp", "vendor"]
+# 监视这些扩展名的文件
+include_ext = ["go", "html", "css", "js"]
+# 忽略这些文件
+exclude_file = []
+# 主程序入口
+cmd = "go build -o ./tmp/main ./cmd/main.go"
+# 二进制文件路径
+bin = "./tmp/main"
+# 自定义参数
+args_bin = []
+# 延迟时间
+delay = 1000
+# 是否在启动时重新构建
+stop_on_error = true
+# 发生错误时是否发送通知
+send_interrupt = false
+# 终止信号
+kill_delay = "0s"
+# 日志格式
+log = "time"
+# 颜色
+color = true
+
+[log]
+# 显示日志时间
+time = true
+
+[color]
+# 自定义颜色
+main = "magenta"
+watcher = "cyan"
+build = "yellow"
+runner = "green"
+
+[screen]
+clear_on_rebuild = true 

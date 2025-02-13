@@ -292,28 +292,59 @@
 
         // 编辑项目
         function editProject(id) {
+            console.log('开始获取项目详情，ID:', id);
             // 获取项目详情
             fetch(`/api/projects/${id}`)
-                .then(response => response.json())
+                .then(response => {
+                    console.log('获取项目详情响应状态:', response.status);
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.message || '获取项目信息失败');
+                        });
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    if (data.success) {
+                    console.log('获取到的项目数据:', data);
+                    if (data.success && data.data) {
                         const project = data.data;
-                        // 填充表单
+                        console.log('准备填充表单数据:', project);
+
+                        // 先获取模态框元素
+                        const modalElement = document.getElementById('editProjectModal');
+                        if (!modalElement) {
+                            throw new Error('未找到模态框元素');
+                        }
+
+                        // 填充表单数据
                         document.getElementById('editProjectId').value = project.ID;
                         document.getElementById('editProjectName').value = project.name;
                         document.getElementById('editProjectCode').value = project.code;
-                        document.getElementById('editProjectDescription').value = project.description || '';
-                        document.getElementById('editProjectManager').value = project.manager || '';
-                        document.getElementById('editProjectClient').value = project.client || '';
-                        document.getElementById('editStartDate').value = project.start_date || '';
-                        document.getElementById('editEndDate').value = project.end_date || '';
+                        document.getElementById('editProjectDescription').value = project.description;
+                        document.getElementById('editProjectManager').value = project.manager;
+                        document.getElementById('editProjectClient').value = project.client;
+                        document.getElementById('editStartDate').value = project.start_date;
+                        document.getElementById('editEndDate').value = project.end_date;
                         document.getElementById('editProjectStatus').value = project.status;
 
-                        // 显示模态框
-                        const modal = new bootstrap.Modal(document.getElementById('editProjectModal'));
+                        console.log('表单字段值：', {
+                            id: document.getElementById('editProjectId').value,
+                            name: document.getElementById('editProjectName').value,
+                            code: document.getElementById('editProjectCode').value,
+                            description: document.getElementById('editProjectDescription').value,
+                            manager: document.getElementById('editProjectManager').value,
+                            client: document.getElementById('editProjectClient').value,
+                            startDate: document.getElementById('editStartDate').value,
+                            endDate: document.getElementById('editEndDate').value,
+                            status: document.getElementById('editProjectStatus').value
+                        });
+
+                        // 确保所有字段都已填充后再显示模态框
+                        const modal = new bootstrap.Modal(modalElement);
                         modal.show();
+                        console.log('模态框已显示');
                     } else {
-                        alert(data.message || '获取项目信息失败');
+                        throw new Error(data.message || '获取项目信息失败');
                     }
                 })
                 .catch(error => {
@@ -339,7 +370,6 @@
             data.status = formData.get('status');
 
             const id = formData.get('id');
-            console.log('更新项目数据:', data); // 添加调试日志
 
             fetch(`/api/projects/${id}`, {
                 method: 'PUT',
@@ -348,13 +378,11 @@
                 },
                 body: JSON.stringify(data)
             })
-            .then(response => {
-                console.log('响应状态:', response.status); // 添加调试日志
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
-                console.log('响应数据:', data); // 添加调试日志
                 if (data.success) {
+                    // 关闭模态框前，先将焦点移到一个安全的元素
+                    document.querySelector('.navbar-brand').focus();
                     // 关闭模态框
                     const modal = bootstrap.Modal.getInstance(document.getElementById('editProjectModal'));
                     modal.hide();
@@ -367,7 +395,6 @@
                 }
             })
             .catch(error => {
-                console.error('更新项目出错:', error); // 添加调试日志
                 alert('更新项目失败：' + error.message);
             });
         }
@@ -410,7 +437,17 @@
         function submitProject() {
             const form = document.getElementById('addProjectForm');
             const formData = new FormData(form);
-            const data = Object.fromEntries(formData.entries());
+            const data = {};
+            
+            // 获取表单数据并进行类型转换
+            data.name = formData.get('name');
+            data.code = formData.get('code');
+            data.description = formData.get('description');
+            data.manager = formData.get('manager');
+            data.client = formData.get('client');
+            data.start_date = formData.get('start_date') || null;
+            data.end_date = formData.get('end_date') || null;
+            data.status = formData.get('status');
 
             fetch('/api/projects', {
                 method: 'POST',
@@ -419,9 +456,18 @@
                 },
                 body: JSON.stringify(data)
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.message || '添加项目失败');
+                    });
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
+                    // 关闭模态框前，先将焦点移到一个安全的元素
+                    document.querySelector('.navbar-brand').focus();
                     // 关闭模态框
                     const modal = bootstrap.Modal.getInstance(document.getElementById('addProjectModal'));
                     modal.hide();
@@ -437,6 +483,39 @@
                 alert('添加项目失败：' + error.message);
             });
         }
+
+        // 初始化模态框事件处理
+        document.addEventListener('DOMContentLoaded', function() {
+            // 添加项目模态框
+            const addProjectModal = document.getElementById('addProjectModal');
+            addProjectModal.addEventListener('hidden.bs.modal', function () {
+                // 模态框隐藏时，移除 aria-hidden 属性
+                this.removeAttribute('aria-hidden');
+                // 将焦点移到一个安全的元素
+                document.querySelector('.navbar-brand').focus();
+            });
+
+            // 编辑项目模态框
+            const editProjectModal = document.getElementById('editProjectModal');
+            editProjectModal.addEventListener('hidden.bs.modal', function () {
+                // 模态框隐藏时，移除 aria-hidden 属性
+                this.removeAttribute('aria-hidden');
+                // 将焦点移到一个安全的元素
+                document.querySelector('.navbar-brand').focus();
+            });
+
+            // 添加项目模态框显示时的处理
+            addProjectModal.addEventListener('show.bs.modal', function () {
+                // 确保表单重置
+                document.getElementById('addProjectForm').reset();
+            });
+
+            // 编辑项目模态框显示时的处理
+            editProjectModal.addEventListener('show.bs.modal', function () {
+                // 确保表单重置
+                document.getElementById('editProjectForm').reset();
+            });
+        });
 
         // 页面加载时检查登录状态
         document.addEventListener('DOMContentLoaded', function() {

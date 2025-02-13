@@ -25,6 +25,20 @@ func main() {
 	// 创建Gin引擎实例
 	r := gin.Default()
 
+	// 设置日志格式
+	r.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		return fmt.Sprintf("[GIN] %v | %3d | %13v | %15s | %-7s %s | %s\n%s",
+			param.TimeStamp.Format("2006/01/02 - 15:04:05"),
+			param.StatusCode,
+			param.Latency,
+			param.ClientIP,
+			param.Method,
+			param.Path,
+			param.ErrorMessage,
+			param.Keys["log"],
+		)
+	}))
+
 	// 设置模板目录
 	r.LoadHTMLGlob("web/templates/*")
 
@@ -74,9 +88,15 @@ func setupRoutes(r *gin.Engine) {
 		{
 			authorized.GET("/user/info", handler.GetUserInfo)
 			authorized.GET("/projects", handler.GetProjects)
-			authorized.POST("/projects", handler.CreateProject)
-			authorized.PUT("/projects/:id", handler.UpdateProject)
-			authorized.DELETE("/projects/:id", handler.DeleteProject)
+
+			// 管理员专用路由
+			adminOnly := authorized.Group("/", handler.RootRequired())
+			{
+				adminOnly.POST("/projects", handler.CreateProject)
+				adminOnly.PUT("/projects/:id", handler.UpdateProject)
+				adminOnly.DELETE("/projects/:id", handler.DeleteProject)
+			}
+
 			authorized.GET("/projects/:id", handler.GetProject)
 			authorized.POST("/reports", handler.CreateReport)
 			authorized.GET("/reports", handler.GetReports)

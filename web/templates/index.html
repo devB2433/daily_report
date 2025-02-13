@@ -271,42 +271,181 @@
                     const dailyStats = data.data.daily_stats;
                     if (dailyStats.length === 0) return;
 
-                    const dates = [];
-                    const hours = [];
-                    
+                    // 获取所有日期和项目
+                    const dates = dailyStats.map(stat => stat.date);
+                    const allProjects = new Set();
                     dailyStats.forEach(stat => {
-                        if (stat) {
-                            dates.push(stat.date || '');
-                            hours.push(stat.total_hours || 0);
+                        if (stat.project_hours) {
+                            stat.project_hours.forEach(ph => {
+                                if (ph.project_name) {
+                                    allProjects.add(ph.project_name);
+                                }
+                            });
                         }
                     });
 
-                    if (dates.length === 0) return;
+                    // 为每个项目准备数据
+                    const datasets = Array.from(allProjects).map(projectName => {
+                        const projectData = dates.map(date => {
+                            const dayStat = dailyStats.find(stat => stat.date === date);
+                            if (!dayStat || !dayStat.project_hours) return 0;
+                            
+                            const projectHours = dayStat.project_hours.find(ph => ph.project_name === projectName);
+                            return projectHours ? projectHours.total_hours : 0;
+                        });
+
+                        // 使用预定义的颜色
+                        const colors = [
+                            '#2196F3', // 蓝色
+                            '#4CAF50', // 绿色
+                            '#FFC107', // 黄色
+                            '#9C27B0', // 紫色
+                            '#FF5722', // 橙色
+                            '#607D8B', // 蓝灰色
+                            '#E91E63', // 粉色
+                            '#795548', // 棕色
+                            '#3F51B5', // 靛蓝色
+                            '#009688'  // 青色
+                        ];
+                        const colorIndex = Array.from(allProjects).indexOf(projectName) % colors.length;
+
+                        return {
+                            label: projectName,
+                            data: projectData,
+                            borderColor: colors[colorIndex],
+                            backgroundColor: colors[colorIndex],
+                            fill: false,
+                            tension: 0.4,
+                            borderWidth: 2,
+                            pointRadius: 3,
+                            pointHoverRadius: 5
+                        };
+                    });
 
                     const ctx = document.getElementById('dailyHoursChart');
                     if (!ctx || window.isLoggingOut) return;
 
-                    new Chart(ctx.getContext('2d'), {
-                        type: 'bar',
+                    // 销毁旧图表
+                    if (window.dailyHoursChart instanceof Chart) {
+                        window.dailyHoursChart.destroy();
+                    }
+
+                    // 创建新图表
+                    window.dailyHoursChart = new Chart(ctx, {
+                        type: 'line',
                         data: {
                             labels: dates,
-                            datasets: [{
-                                label: '工时',
-                                data: hours,
-                                backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                                borderColor: 'rgba(54, 162, 235, 1)',
-                                borderWidth: 1
-                            }]
+                            datasets: datasets
                         },
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
+                            interaction: {
+                                mode: 'index',
+                                intersect: false
+                            },
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: '每日项目工时分布',
+                                    font: {
+                                        size: 16,
+                                        weight: 'bold'
+                                    },
+                                    padding: 20
+                                },
+                                legend: {
+                                    position: 'top',
+                                    align: 'center',
+                                    labels: {
+                                        usePointStyle: true,
+                                        padding: 15,
+                                        font: {
+                                            size: 12
+                                        },
+                                        boxWidth: 10,
+                                        generateLabels: function(chart) {
+                                            const datasets = chart.data.datasets;
+                                            return datasets.map((dataset, i) => ({
+                                                text: dataset.label,
+                                                fillStyle: dataset.backgroundColor,
+                                                strokeStyle: dataset.borderColor,
+                                                lineWidth: 2,
+                                                hidden: !chart.isDatasetVisible(i),
+                                                index: i,
+                                                pointStyle: 'circle'
+                                            }));
+                                        }
+                                    },
+                                    onClick: function(e, legendItem, legend) {
+                                        const index = legendItem.index;
+                                        const chart = legend.chart;
+                                        const meta = chart.getDatasetMeta(index);
+
+                                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                                        chart.update();
+                                    }
+                                },
+                                tooltip: {
+                                    mode: 'index',
+                                    intersect: false,
+                                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                    titleColor: '#000',
+                                    bodyColor: '#000',
+                                    borderColor: '#ddd',
+                                    borderWidth: 1,
+                                    padding: 10,
+                                    callbacks: {
+                                        title: function(tooltipItems) {
+                                            return '日期: ' + tooltipItems[0].label;
+                                        },
+                                        label: function(context) {
+                                            const label = context.dataset.label || '';
+                                            const value = context.raw || 0;
+                                            return `${label}: ${value.toFixed(1)}小时`;
+                                        },
+                                        footer: function(tooltipItems) {
+                                            let total = 0;
+                                            tooltipItems.forEach(item => {
+                                                total += item.raw || 0;
+                                            });
+                                            return `总计: ${total.toFixed(1)}小时`;
+                                        }
+                                    }
+                                }
+                            },
                             scales: {
                                 y: {
                                     beginAtZero: true,
                                     title: {
                                         display: true,
-                                        text: '工时'
+                                        text: '工时（小时）',
+                                        font: {
+                                            size: 12,
+                                            weight: 'bold'
+                                        }
+                                    },
+                                    ticks: {
+                                        callback: function(value) {
+                                            return value + 'h';
+                                        },
+                                        stepSize: 2
+                                    },
+                                    grid: {
+                                        color: 'rgba(0, 0, 0, 0.1)'
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: '日期',
+                                        font: {
+                                            size: 12,
+                                            weight: 'bold'
+                                        }
+                                    },
+                                    grid: {
+                                        display: false
                                     }
                                 }
                             }
@@ -343,8 +482,8 @@
                         stat && 
                         typeof stat === 'object' && 
                         stat.project_name && 
-                        typeof stat.hours !== 'undefined'
-                    );
+                        typeof stat.total_hours !== 'undefined'
+                    ).sort((a, b) => b.total_hours - a.total_hours); // 按工时降序排序
 
                     if (validStats.length === 0) {
                         console.log('没有有效的项目工时数据');
@@ -352,48 +491,116 @@
                     }
 
                     const projectNames = validStats.map(stat => stat.project_name);
-                    const projectHours = validStats.map(stat => parseFloat(stat.hours) || 0);
+                    const projectHours = validStats.map(stat => parseFloat(stat.total_hours) || 0);
+                    const totalHours = projectHours.reduce((sum, hours) => sum + hours, 0);
 
                     const ctx = document.getElementById('projectHoursChart');
                     if (!ctx || window.isLoggingOut) return;
 
-                    if (window.projectHoursChart) {
+                    // 销毁旧图表
+                    if (window.projectHoursChart instanceof Chart) {
                         window.projectHoursChart.destroy();
                     }
 
-                    window.projectHoursChart = new Chart(ctx.getContext('2d'), {
+                    // 使用预定义的颜色
+                    const colors = [
+                        '#2196F3', // 蓝色
+                        '#4CAF50', // 绿色
+                        '#FFC107', // 黄色
+                        '#9C27B0', // 紫色
+                        '#FF5722', // 橙色
+                        '#607D8B', // 蓝灰色
+                        '#E91E63', // 粉色
+                        '#795548', // 棕色
+                        '#3F51B5', // 靛蓝色
+                        '#009688'  // 青色
+                    ];
+
+                    window.projectHoursChart = new Chart(ctx, {
                         type: 'doughnut',
                         data: {
                             labels: projectNames,
                             datasets: [{
                                 data: projectHours,
-                                backgroundColor: generateColors(projectHours.length),
-                                borderWidth: 1
+                                backgroundColor: projectNames.map((_, i) => colors[i % colors.length]),
+                                borderColor: 'white',
+                                borderWidth: 2,
+                                hoverBorderColor: 'white',
+                                hoverBorderWidth: 3,
+                                hoverOffset: 10
                             }]
                         },
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
+                            cutout: '60%',
                             plugins: {
+                                title: {
+                                    display: true,
+                                    text: '本月项目工时分布',
+                                    font: {
+                                        size: 16,
+                                        weight: 'bold'
+                                    },
+                                    padding: 20
+                                },
                                 legend: {
                                     position: 'right',
+                                    align: 'center',
                                     labels: {
+                                        usePointStyle: true,
+                                        padding: 15,
                                         font: {
                                             size: 12
+                                        },
+                                        generateLabels: function(chart) {
+                                            const data = chart.data;
+                                            return data.labels.map((label, i) => ({
+                                                text: `${label} (${data.datasets[0].data[i].toFixed(1)}h)`,
+                                                fillStyle: data.datasets[0].backgroundColor[i],
+                                                strokeStyle: data.datasets[0].backgroundColor[i],
+                                                lineWidth: 0,
+                                                hidden: isNaN(data.datasets[0].data[i]) || data.datasets[0].data[i] === 0,
+                                                index: i,
+                                                pointStyle: 'circle'
+                                            }));
                                         }
+                                    },
+                                    onClick: function(e, legendItem, legend) {
+                                        const index = legendItem.index;
+                                        const chart = legend.chart;
+                                        const meta = chart.getDatasetMeta(0);
+                                        
+                                        meta.data[index].hidden = !meta.data[index].hidden;
+                                        chart.update();
                                     }
                                 },
                                 tooltip: {
+                                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                    titleColor: '#000',
+                                    bodyColor: '#000',
+                                    borderColor: '#ddd',
+                                    borderWidth: 1,
+                                    padding: 10,
+                                    displayColors: true,
                                     callbacks: {
+                                        title: function(tooltipItems) {
+                                            return tooltipItems[0].label;
+                                        },
                                         label: function(context) {
-                                            const label = context.label || '';
-                                            const value = context.raw || 0;
-                                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                            const percentage = ((value / total) * 100).toFixed(1);
-                                            return `${label}: ${value}小时 (${percentage}%)`;
+                                            const value = context.raw;
+                                            const percentage = ((value / totalHours) * 100).toFixed(1);
+                                            return [
+                                                `工时：${value.toFixed(1)}小时`,
+                                                `占比：${percentage}%`
+                                            ];
                                         }
                                     }
                                 }
+                            },
+                            animation: {
+                                animateRotate: true,
+                                animateScale: true
                             }
                         }
                     });
@@ -403,26 +610,6 @@
                         console.error('加载项目工时占比失败:', error);
                     }
                 });
-        }
-
-        function generateColors(count) {
-            const colorPalettes = [
-                ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
-                ['#FF8A80', '#82B1FF', '#B9F6CA', '#FFD180', '#EA80FC'],
-                ['#EF5350', '#42A5F5', '#66BB6A', '#FFA726', '#AB47BC'],
-                ['#F44336', '#2196F3', '#4CAF50', '#FF9800', '#9C27B0']
-            ];
-
-            let paletteIndex = window.currentPaletteIndex || 0;
-            const palette = colorPalettes[paletteIndex];
-            const colors = [];
-
-            for (let i = 0; i < count; i++) {
-                colors.push(palette[i % palette.length]);
-            }
-
-            window.currentPaletteIndex = (paletteIndex + 1) % colorPalettes.length;
-            return colors;
         }
 
         // 初始化日历
