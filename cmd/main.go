@@ -48,13 +48,6 @@ func setupRoutes(r *gin.Engine) {
 	{
 		// 登录页面
 		public.GET("/login", func(c *gin.Context) {
-			// 如果已经登录，重定向到首页
-			token, _ := c.Cookie("token")
-			if token != "" && handler.ValidateToken(token) {
-				c.Redirect(http.StatusFound, "/")
-				c.Abort()
-				return
-			}
 			c.HTML(http.StatusOK, "login.html", gin.H{
 				"title": "工作管理系统",
 			})
@@ -71,99 +64,64 @@ func setupRoutes(r *gin.Engine) {
 	// API路由组
 	api := r.Group("/api")
 	{
-		// 认证相关路由
+		// 公开的API路由
 		api.POST("/register", handler.RegisterHandler)
 		api.POST("/login", handler.LoginHandler)
+		api.POST("/logout", handler.LogoutHandler)
 
-		// 需要认证的路由
-		authorized := api.Group("/")
-		authorized.Use(handler.AuthMiddleware())
+		// 需要认证的API路由
+		authorized := api.Group("/", handler.AuthMiddleware())
 		{
-			// 用户相关
 			authorized.GET("/user/info", handler.GetUserInfo)
-
-			// 项目列表API（所有认证用户可访问）
 			authorized.GET("/projects", handler.GetProjects)
-
-			// 项目管理相关（需要管理员权限）
-			projectAdmin := authorized.Group("/projects")
-			projectAdmin.Use(handler.RootRequired())
-			{
-				projectAdmin.POST("", handler.CreateProject)
-				projectAdmin.PUT("/:id", handler.UpdateProject)
-				projectAdmin.DELETE("/:id", handler.DeleteProject)
-				projectAdmin.GET("/:id", handler.GetProject)
-			}
-
-			// 日报相关
-			reports := authorized.Group("/reports")
-			{
-				reports.POST("", handler.CreateReport)
-				reports.GET("", handler.GetReports)
-				reports.GET("/status", handler.GetReportSubmissionStatus)
-				reports.GET("/stats/monthly", handler.GetMonthlyStats)
-				reports.GET("/:id", handler.GetReport)
-				reports.DELETE("/:id", handler.DeleteReport)
-			}
-
-			// 统计分析相关（需要管理员权限）
-			analytics := authorized.Group("/analytics")
-			analytics.Use(handler.RootRequired())
-			{
-				analytics.GET("/summary", handler.GetAnalyticsSummary)
-			}
+			authorized.POST("/projects", handler.CreateProject)
+			authorized.PUT("/projects/:id", handler.UpdateProject)
+			authorized.DELETE("/projects/:id", handler.DeleteProject)
+			authorized.GET("/projects/:id", handler.GetProject)
+			authorized.POST("/reports", handler.CreateReport)
+			authorized.GET("/reports", handler.GetReports)
+			authorized.GET("/reports/status", handler.GetReportSubmissionStatus)
+			authorized.GET("/reports/stats/monthly", handler.GetMonthlyStats)
+			authorized.GET("/reports/:id", handler.GetReport)
+			authorized.DELETE("/reports/:id", handler.DeleteReport)
+			authorized.GET("/analytics/summary", handler.GetAnalyticsSummary)
 		}
 	}
 
-	// 需要认证的页面路由
-	authorized := r.Group("/")
-	authorized.Use(handler.AuthMiddleware())
-	{
-		// 首页路由
-		authorized.GET("/", func(c *gin.Context) {
-			username, _ := c.Get("username")
-			role, _ := c.Get("role")
-			c.HTML(http.StatusOK, "index.html", gin.H{
-				"title":    "工作管理系统",
-				"username": username,
-				"role":     role,
-				"isAdmin":  role == "admin",
-			})
+	// 页面路由
+	r.GET("/", handler.AuthMiddleware(), func(c *gin.Context) {
+		username, _ := c.Cookie("username")
+		role, _ := c.Cookie("role")
+
+		c.HTML(http.StatusOK, "index.html", gin.H{
+			"title":    "工作管理系统",
+			"username": username,
+			"role":     role,
+			"isAdmin":  role == "admin",
 		})
+	})
 
-		// 项目管理页面（需要管理员权限）
-		projectPages := authorized.Group("/projects")
-		projectPages.Use(handler.RootRequired())
-		{
-			projectPages.GET("", func(c *gin.Context) {
-				c.HTML(http.StatusOK, "projects.html", gin.H{
-					"title": "项目管理",
-				})
-			})
-		}
-
-		// 统计分析页面（需要管理员权限）
-		analyticsPages := authorized.Group("/analytics")
-		analyticsPages.Use(handler.RootRequired())
-		{
-			analyticsPages.GET("", func(c *gin.Context) {
-				c.HTML(http.StatusOK, "analytics.html", gin.H{
-					"title": "统计分析",
-				})
-			})
-		}
-
-		// 日报页面路由
-		authorized.GET("/reports/new", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "write_report.html", gin.H{
-				"title": "写日报",
-			})
+	r.GET("/projects", handler.AuthMiddleware(), func(c *gin.Context) {
+		c.HTML(http.StatusOK, "projects.html", gin.H{
+			"title": "项目管理",
 		})
+	})
 
-		authorized.GET("/reports", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "reports.html", gin.H{
-				"title": "我的日报",
-			})
+	r.GET("/analytics", handler.AuthMiddleware(), func(c *gin.Context) {
+		c.HTML(http.StatusOK, "analytics.html", gin.H{
+			"title": "统计分析",
 		})
-	}
+	})
+
+	r.GET("/reports/new", handler.AuthMiddleware(), func(c *gin.Context) {
+		c.HTML(http.StatusOK, "write_report.html", gin.H{
+			"title": "写日报",
+		})
+	})
+
+	r.GET("/reports", handler.AuthMiddleware(), func(c *gin.Context) {
+		c.HTML(http.StatusOK, "reports.html", gin.H{
+			"title": "我的日报",
+		})
+	})
 }

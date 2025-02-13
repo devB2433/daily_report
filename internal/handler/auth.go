@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"daily-report/internal/config"
 	"daily-report/internal/database"
 	"daily-report/internal/model"
 
@@ -15,8 +16,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// JWT密钥
-const jwtSecret = "your-secret-key"
+// 获取JWT密钥
+func getJWTSecret() []byte {
+	return []byte(config.GetConfig().JWT.Secret)
+}
 
 // ValidateToken 验证token是否有效
 func ValidateToken(tokenString string) bool {
@@ -40,7 +43,7 @@ func ParseToken(tokenString string) (jwt.MapClaims, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(jwtSecret), nil
+		return getJWTSecret(), nil
 	})
 
 	if err != nil {
@@ -220,38 +223,21 @@ func LoginHandler(c *gin.Context) {
 	user.UpdateLastLogin()
 	db.Save(&user)
 
-	// 生成JWT令牌
-	expirationTime := time.Now().Add(24 * time.Hour)
+	// 设置登录Cookie
+	maxAge := 24 * 3600 // 1天
 	if req.RememberMe {
-		expirationTime = time.Now().Add(7 * 24 * time.Hour)
+		maxAge = 7 * 24 * 3600 // 7天
 	}
 
-	claims := jwt.MapClaims{
-		"user_id":  user.ID,
-		"email":    user.Email,
-		"username": user.Username,
-		"role":     user.Role,
-		"exp":      expirationTime.Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(jwtSecret))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "生成令牌失败",
-		})
-		return
-	}
-
-	// 设置Cookie
-	c.SetCookie("token", tokenString, int(expirationTime.Sub(time.Now()).Seconds()), "/", "", false, true)
+	// 设置用户信息到cookie
+	c.SetCookie("user_id", fmt.Sprintf("%d", user.ID), maxAge, "/", "", false, true)
+	c.SetCookie("username", user.Username, maxAge, "/", "", false, true)
+	c.SetCookie("role", user.Role, maxAge, "/", "", false, true)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "登录成功",
 		"data": gin.H{
-			"token":    tokenString,
 			"user_id":  user.ID,
 			"username": user.Username,
 			"email":    user.Email,
@@ -263,50 +249,42 @@ func LoginHandler(c *gin.Context) {
 // AuthMiddleware 认证中间件
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 从Cookie中获取令牌
-		tokenString, err := c.Cookie("token")
-		if err != nil || tokenString == "" {
-			// 清除可能存在的无效cookie
-			c.SetCookie("token", "", -1, "/", "", false, true)
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": "未登录",
-			})
-			c.Abort()
-			return
-		}
+		// 不需要认证的路径
+		publicPaths := []string{"/api/login", "/api/register", "/api/logout"}
+		currentPath := c.Request.URL.Path
 
-		// 解析并验证token
-		claims, err := ParseToken(tokenString)
-		if err != nil {
-			// token无效，清除cookie
-			c.SetCookie("token", "", -1, "/", "", false, true)
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": "登录已过期，请重新登录",
-			})
-			c.Abort()
-			return
-		}
-
-		// 检查token是否过期
-		if exp, ok := claims["exp"].(float64); ok {
-			if time.Now().Unix() > int64(exp) {
-				c.SetCookie("token", "", -1, "/", "", false, true)
-				c.JSON(http.StatusUnauthorized, gin.H{
-					"success": false,
-					"message": "登录已过期，请重新登录",
-				})
-				c.Abort()
+		// 检查是否是公开路径
+		for _, path := range publicPaths {
+			if path == currentPath {
+				c.Next()
 				return
 			}
 		}
 
+		// 从Cookie中获取用户信息
+		userId, err := c.Cookie("user_id")
+		if err != nil || userId == "" {
+			// 如果是API请求，返回JSON响应
+			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"success": false,
+					"message": "未登录",
+				})
+			} else {
+				// 如果是页面请求，重定向到登录页面
+				c.Redirect(http.StatusFound, "/login")
+			}
+			c.Abort()
+			return
+		}
+
 		// 设置用户信息到上下文
-		c.Set("user_id", uint(claims["user_id"].(float64)))
-		c.Set("email", claims["email"].(string))
-		c.Set("username", claims["username"].(string))
-		c.Set("role", claims["role"].(string))
+		username, _ := c.Cookie("username")
+		role, _ := c.Cookie("role")
+
+		c.Set("user_id", userId)
+		c.Set("username", username)
+		c.Set("role", role)
 		c.Next()
 	}
 }
@@ -354,5 +332,19 @@ func GetUserInfo(c *gin.Context) {
 			"email":    user.Email,
 			"role":     user.Role,
 		},
+	})
+}
+
+// LogoutHandler 处理用户退出登录
+func LogoutHandler(c *gin.Context) {
+	// 清除所有认证相关的cookie
+	c.SetCookie("user_id", "", -1, "/", "", false, true)
+	c.SetCookie("username", "", -1, "/", "", false, true)
+	c.SetCookie("role", "", -1, "/", "", false, true)
+
+	// 返回成功响应
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "退出登录成功",
 	})
 }

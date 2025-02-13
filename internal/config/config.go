@@ -28,6 +28,10 @@ type Config struct {
 		Port int    `yaml:"port"`
 		Mode string `yaml:"mode"`
 	} `yaml:"server"`
+
+	JWT struct {
+		Secret string `yaml:"secret"`
+	} `yaml:"jwt"`
 }
 
 var (

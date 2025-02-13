@@ -12,3 +12,6 @@ database:
 server:
   port: 8080
   mode: debug  # debug or release 
+
+jwt:
+  secret: "your-super-secret-key-please-change-in-production"  # 请在生产环境中修改此密钥 

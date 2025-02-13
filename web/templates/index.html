@@ -23,6 +23,72 @@
             height: 300px;
             width: 100%;
         }
+        .calendar-container {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 2px;
+            background-color: #f8f9fa;
+            padding: 2px;
+            border-radius: 4px;
+        }
+        .calendar-header {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 2px;
+            background-color: #f8f9fa;
+            margin-bottom: 2px;
+        }
+        .calendar-header div {
+            text-align: center;
+            padding: 8px 0;
+            font-size: 12px;
+            font-weight: 500;
+            color: #666;
+            background-color: #fff;
+        }
+        .calendar-day {
+            aspect-ratio: 1;
+            background-color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            font-size: 14px;
+            padding: 4px;
+        }
+        .calendar-day.weekend {
+            color: #999;
+        }
+        .calendar-day.empty {
+            background-color: #f8f9fa;
+        }
+        .calendar-day.today {
+            font-weight: bold;
+            color: #0d6efd;
+            background-color: #e8f0fe;
+        }
+        .calendar-day .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-top: 4px;
+        }
+        .calendar-day .status-dot.submitted {
+            background-color: #28a745;
+        }
+        .calendar-day .status-dot.not-submitted {
+            background-color: #dc3545;
+        }
+        .calendar-month {
+            text-align: center;
+            font-size: 16px;
+            font-weight: 500;
+            padding: 12px;
+            background-color: #fff;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 2px;
+        }
     </style>
 </head>
 <body>
@@ -65,7 +131,7 @@
                             <li><a class="dropdown-item" href="/profile">个人信息</a></li>
                             <li><a class="dropdown-item" href="#" onclick="showCookies()">查看Cookie</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" onclick="handleLogout()">退出登录</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="return handleLogout(event)">退出登录</a></li>
                         </ul>
                     </li>
                 </ul>
@@ -75,9 +141,9 @@
 
     <div class="container mt-4">
         <div class="row">
-            <!-- 每日工时图表 -->
-            <div class="col-md-8 mb-4">
-                <div class="card">
+            <!-- 每日工时图表和项目工时占比 -->
+            <div class="col-md-8">
+                <div class="card mb-4">
                     <div class="card-header">
                         <h5 class="card-title mb-0">每日工时统计</h5>
                     </div>
@@ -87,10 +153,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- 项目工时占比 -->
-            <div class="col-md-4 mb-4">
                 <div class="card">
                     <div class="card-header">
                         <h5 class="card-title mb-0">项目工时占比</h5>
@@ -102,17 +165,25 @@
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- 日历视图 -->
-        <div class="row">
-            <div class="col-12">
+            <!-- 日历视图 -->
+            <div class="col-md-4">
                 <div class="card">
                     <div class="card-header">
                         <h5 class="card-title mb-0">日报提交日历</h5>
                     </div>
-                    <div class="card-body">
-                        <div id="calendar" class="d-flex flex-wrap"></div>
+                    <div class="card-body p-0">
+                        <div id="calendarMonth" class="calendar-month"></div>
+                        <div class="calendar-header">
+                            <div>日</div>
+                            <div>一</div>
+                            <div>二</div>
+                            <div>三</div>
+                            <div>四</div>
+                            <div>五</div>
+                            <div>六</div>
+                        </div>
+                        <div id="calendar" class="calendar-container"></div>
                     </div>
                 </div>
             </div>
@@ -123,114 +194,217 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // 处理退出登录
-        function handleLogout() {
-            document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        function handleLogout(event) {
+            console.log('开始退出登录...');
+            event.preventDefault();
+            window.isLoggingOut = true;
+            fetch('/api/logout', {
+                method: 'POST',
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                clearAllCookies();
+                redirectToLogin();
+            })
+            .catch(error => {
+                clearAllCookies();
+                redirectToLogin();
+            });
+            return false;
+        }
+
+        function clearAllCookies() {
+            const cookies = ['user_id', 'username', 'role', 'token'];
+            const paths = ['/', '/api', '/login', '/reports', '/projects', '/analytics'];
+            cookies.forEach(cookie => {
+                paths.forEach(path => {
+                    document.cookie = `${cookie}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${path}`;
+                });
+            });
+        }
+
+        function redirectToLogin() {
             window.location.href = '/login';
         }
 
-        // 加载每日工时图表
-        function loadDailyHoursChart() {
-            fetch('/api/reports/stats/monthly')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const dailyStats = data.data.daily_stats;
-                        const dates = dailyStats.map(stat => stat.date);
-                        const hours = dailyStats.map(stat => stat.total_hours);
+        function checkResponse(response) {
+            if (window.isLoggingOut) return null;
+            if (response.status === 401) {
+                clearAllCookies();
+                redirectToLogin();
+                return null;
+            }
+            return response.json();
+        }
 
-                        const ctx = document.getElementById('dailyHoursChart').getContext('2d');
-                        new Chart(ctx, {
-                            type: 'bar',
-                            data: {
-                                labels: dates,
-                                datasets: [{
-                                    label: '工时',
-                                    data: hours,
-                                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                                    borderColor: 'rgba(54, 162, 235, 1)',
-                                    borderWidth: 1
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                scales: {
-                                    y: {
-                                        beginAtZero: true,
-                                        title: {
-                                            display: true,
-                                            text: '工时'
+        function showCookies() {
+            const cookies = document.cookie.split(';').map(cookie => cookie.trim());
+            alert('当前Cookie:\n' + cookies.join('\n'));
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('/api/user/info')
+                .then(checkResponse)
+                .then(data => {
+                    if (!window.isLoggingOut && data && data.success) {
+                        loadDailyHoursChart();
+                        loadProjectHours();
+                        initializeCalendar();
+                    }
+                })
+                .catch(() => {
+                    if (!window.isLoggingOut) {
+                        clearAllCookies();
+                        redirectToLogin();
+                    }
+                });
+        });
+
+        function loadDailyHoursChart() {
+            if (window.isLoggingOut) return;
+            fetch('/api/reports/stats/monthly')
+                .then(checkResponse)
+                .then(data => {
+                    if (!data || window.isLoggingOut) return;
+                    if (!data.data || !Array.isArray(data.data.daily_stats)) return;
+                    
+                    const dailyStats = data.data.daily_stats;
+                    if (dailyStats.length === 0) return;
+
+                    const dates = [];
+                    const hours = [];
+                    
+                    dailyStats.forEach(stat => {
+                        if (stat) {
+                            dates.push(stat.date || '');
+                            hours.push(stat.total_hours || 0);
+                        }
+                    });
+
+                    if (dates.length === 0) return;
+
+                    const ctx = document.getElementById('dailyHoursChart');
+                    if (!ctx || window.isLoggingOut) return;
+
+                    new Chart(ctx.getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: dates,
+                            datasets: [{
+                                label: '工时',
+                                data: hours,
+                                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: '工时'
+                                    }
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => {
+                    if (!window.isLoggingOut) {
+                        console.error('加载每日工时图表失败:', error);
+                    }
+                });
+        }
+
+        function loadProjectHours() {
+            if (window.isLoggingOut) return;
+            fetch('/api/reports/stats/monthly')
+                .then(response => {
+                    if (window.isLoggingOut) return null;
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (!data || window.isLoggingOut) return;
+                    
+                    const projectStats = data.data?.project_stats;
+                    if (!projectStats || !Array.isArray(projectStats)) {
+                        console.log('没有项目工时数据或数据格式不正确');
+                        return;
+                    }
+
+                    const validStats = projectStats.filter(stat => 
+                        stat && 
+                        typeof stat === 'object' && 
+                        stat.project_name && 
+                        typeof stat.hours !== 'undefined'
+                    );
+
+                    if (validStats.length === 0) {
+                        console.log('没有有效的项目工时数据');
+                        return;
+                    }
+
+                    const projectNames = validStats.map(stat => stat.project_name);
+                    const projectHours = validStats.map(stat => parseFloat(stat.hours) || 0);
+
+                    const ctx = document.getElementById('projectHoursChart');
+                    if (!ctx || window.isLoggingOut) return;
+
+                    if (window.projectHoursChart) {
+                        window.projectHoursChart.destroy();
+                    }
+
+                    window.projectHoursChart = new Chart(ctx.getContext('2d'), {
+                        type: 'doughnut',
+                        data: {
+                            labels: projectNames,
+                            datasets: [{
+                                data: projectHours,
+                                backgroundColor: generateColors(projectHours.length),
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'right',
+                                    labels: {
+                                        font: {
+                                            size: 12
+                                        }
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || '';
+                                            const value = context.raw || 0;
+                                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                            const percentage = ((value / total) * 100).toFixed(1);
+                                            return `${label}: ${value}小时 (${percentage}%)`;
                                         }
                                     }
                                 }
                             }
-                        });
+                        }
+                    });
+                })
+                .catch(error => {
+                    if (!window.isLoggingOut) {
+                        console.error('加载项目工时占比失败:', error);
                     }
                 });
         }
 
-        // 加载项目工时占比图表
-        function loadProjectHours() {
-            fetch('/api/reports/stats/monthly')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const projectStats = data.data.project_stats;
-                        const projectNames = projectStats.map(stat => stat.project_name);
-                        const projectHours = projectStats.map(stat => stat.hours);
-
-                        const ctx = document.getElementById('projectHoursChart').getContext('2d');
-                        new Chart(ctx, {
-                            type: 'doughnut',
-                            data: {
-                                labels: projectNames,
-                                datasets: [{
-                                    data: projectHours,
-                                    backgroundColor: generateColors(projectHours.length),
-                                    borderWidth: 1
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: {
-                                    legend: {
-                                        position: 'right'
-                                    }
-                                }
-                            }
-                        });
-                    }
-                });
-        }
-
-        // 初始化日历
-        function initializeCalendar() {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = (now.getMonth() + 1).toString().padStart(2, '0');
-
-            fetch(`/api/reports/status?year=${year}&month=${month}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const calendar = document.getElementById('calendar');
-                        calendar.innerHTML = '';
-
-                        data.data.forEach(day => {
-                            const dayElement = document.createElement('div');
-                            dayElement.className = `calendar-day m-1 p-2 rounded ${day.submitted ? 'bg-success text-white' : 'bg-light'}`;
-                            dayElement.style.width = '40px';
-                            dayElement.style.height = '40px';
-                            dayElement.style.textAlign = 'center';
-                            dayElement.textContent = day.date.split('-')[2];
-                            calendar.appendChild(dayElement);
-                        });
-                    }
-                });
-        }
-
-        // 生成随机颜色
         function generateColors(count) {
             const colorPalettes = [
                 ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
@@ -244,47 +418,100 @@
             const colors = [];
 
             for (let i = 0; i < count; i++) {
-                const color = palette[i % palette.length];
-                colors.push(color);
+                colors.push(palette[i % palette.length]);
             }
 
-            // 更新索引，循环使用四种色系
             window.currentPaletteIndex = (paletteIndex + 1) % colorPalettes.length;
-            
             return colors;
         }
 
-        // 显示Cookie
-        function showCookies() {
-            const cookies = document.cookie.split(';').map(cookie => cookie.trim());
-            alert('当前Cookie:\n' + cookies.join('\n'));
-        }
+        // 初始化日历
+        function initializeCalendar() {
+            if (window.isLoggingOut) return;
 
-        // 页面加载时加载数据
-        document.addEventListener('DOMContentLoaded', function() {
-            // 检查登录状态
-            fetch('/api/user/info')
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = (now.getMonth() + 1).toString().padStart(2, '0');
+            const today = now.getDate();
+
+            // 设置月份标题
+            const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+            const monthTitle = `${year}年${monthNames[now.getMonth()]}`;
+            document.getElementById('calendarMonth').textContent = monthTitle;
+
+            fetch(`/api/reports/status?year=${year}&month=${month}`)
                 .then(response => {
-                    if (response.status === 401) {
-                        // 未登录或token无效，重定向到登录页面
-                        window.location.href = '/login';
-                        return;
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     return response.json();
                 })
                 .then(data => {
-                    if (data && data.success) {
-                        // 已登录，加载页面数据
-                        loadDailyHoursChart();
-                        loadProjectHours();
-                        initializeCalendar();
+                    if (!data || window.isLoggingOut) return;
+                    
+                    const calendarData = data.data;
+                    if (!calendarData || !Array.isArray(calendarData)) {
+                        console.log('没有日历数据或数据格式不正确');
+                        return;
+                    }
+
+                    const calendar = document.getElementById('calendar');
+                    calendar.innerHTML = '';
+                    
+                    const daysInMonth = new Date(year, month, 0).getDate();
+                    const firstDay = new Date(year, month - 1, 1).getDay();
+
+                    // 添加空白天数（对齐星期）
+                    for (let i = 0; i < firstDay; i++) {
+                        const emptyDay = document.createElement('div');
+                        emptyDay.className = 'calendar-day empty';
+                        calendar.appendChild(emptyDay);
+                    }
+
+                    // 添加月份天数
+                    for (let day = 1; day <= daysInMonth; day++) {
+                        const dayStr = day.toString().padStart(2, '0');
+                        const dateStr = `${year}-${month}-${dayStr}`;
+                        const currentDate = new Date(year, month - 1, day);
+                        const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
+                        const dayData = calendarData.find(d => d && d.date === dateStr);
+                        const isToday = day === today;
+
+                        const dayElement = document.createElement('div');
+                        dayElement.className = `calendar-day${isWeekend ? ' weekend' : ''}${isToday ? ' today' : ''}`;
+                        
+                        // 添加日期数字
+                        const dateNumber = document.createElement('span');
+                        dateNumber.textContent = day;
+                        dayElement.appendChild(dateNumber);
+
+                        // 添加状态点（仅在工作日或有提交记录时显示）
+                        if (!isWeekend || (dayData && dayData.submitted)) {
+                            const statusDot = document.createElement('div');
+                            statusDot.className = `status-dot ${dayData?.submitted ? 'submitted' : 'not-submitted'}`;
+                            dayElement.appendChild(statusDot);
+                        }
+
+                        calendar.appendChild(dayElement);
+                    }
+
+                    // 添加剩余的空白天数（补齐最后一行）
+                    const totalDays = firstDay + daysInMonth;
+                    const remainingDays = 7 - (totalDays % 7);
+                    if (remainingDays < 7) {
+                        for (let i = 0; i < remainingDays; i++) {
+                            const emptyDay = document.createElement('div');
+                            emptyDay.className = 'calendar-day empty';
+                            calendar.appendChild(emptyDay);
+                        }
                     }
                 })
                 .catch(error => {
-                    console.error('检查登录状态失败:', error);
-                    window.location.href = '/login';
+                    if (!window.isLoggingOut) {
+                        console.error('加载日历数据失败:', error);
+                    }
                 });
-        });
+        }
     </script>
 </body>
 </html> 
