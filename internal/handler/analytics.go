@@ -14,10 +14,15 @@ import (
 
 // AnalyticsSummary 统计分析摘要
 type AnalyticsSummary struct {
-	TotalUsers     int64                         `json:"total_users"`
-	TotalProjects  int64                         `json:"total_projects"`
-	MonthlyReports int64                         `json:"monthly_reports"`
-	MonthlyHours   float64                       `json:"monthly_hours"`
+	TotalUsers    int64   `json:"total_users"`
+	TotalProjects int64   `json:"total_projects"`
+	TotalReports  int64   `json:"monthly_reports"`
+	TotalHours    float64 `json:"monthly_hours"`
+	TimeRange     struct {
+		StartDate string `json:"start_date"`
+		EndDate   string `json:"end_date"`
+		Preset    string `json:"preset"`
+	} `json:"time_range"`
 	ProjectHours   []model.ProjectHoursStat      `json:"project_hours"`
 	UserHours      []model.UserHoursStat         `json:"user_hours"`
 	SubmissionRate []model.SubmissionRateStat    `json:"submission_rate"`
@@ -26,12 +31,63 @@ type AnalyticsSummary struct {
 
 // GetAnalyticsSummary 获取统计分析摘要数据
 func GetAnalyticsSummary(c *gin.Context) {
-	db := database.GetDB()
-	now := time.Now()
-	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	endOfMonth := startOfMonth.AddDate(0, 1, 0)
+	// 获取时间范围参数
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+	preset := c.Query("preset")
 
+	// 如果没有提供时间范围，使用当月
+	if startDate == "" || endDate == "" {
+		now := time.Now()
+		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Format("2006-01-02")
+		endDate = time.Date(now.Year(), now.Month()+1, 0, 23, 59, 59, 999999999, now.Location()).Format("2006-01-02")
+		preset = "month"
+	}
+
+	// 解析时间
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "开始日期格式无效",
+		})
+		return
+	}
+
+	end, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "结束日期格式无效",
+		})
+		return
+	}
+
+	// 验证时间范围
+	if end.Before(start) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "结束日期不能早于开始日期",
+		})
+		return
+	}
+
+	// 限制查询范围不超过1年
+	if end.Sub(start) > 365*24*time.Hour {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "查询时间范围不能超过1年",
+		})
+		return
+	}
+
+	db := database.GetDB()
 	var summary AnalyticsSummary
+
+	// 设置时间范围
+	summary.TimeRange.StartDate = startDate
+	summary.TimeRange.EndDate = endDate
+	summary.TimeRange.Preset = preset
 
 	// 1. 获取总用户数
 	if err := db.Model(&model.User{}).Count(&summary.TotalUsers).Error; err != nil {
@@ -51,8 +107,8 @@ func GetAnalyticsSummary(c *gin.Context) {
 		return
 	}
 
-	// 3. 获取本月日报数
-	if err := db.Model(&model.Report{}).Where("date >= ? AND date < ?", startOfMonth, endOfMonth).Count(&summary.MonthlyReports).Error; err != nil {
+	// 3. 获取指定时间范围内的日报数
+	if err := db.Model(&model.Report{}).Where("date >= ? AND date <= ?", start, end).Count(&summary.TotalReports).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "获取日报统计失败",
@@ -60,20 +116,20 @@ func GetAnalyticsSummary(c *gin.Context) {
 		return
 	}
 
-	// 4. 获取本月总工时
-	var monthlyHours float64
+	// 4. 获取指定时间范围内的总工时
+	var totalHours float64
 	if err := db.Model(&model.Task{}).
 		Joins("JOIN reports ON tasks.report_id = reports.id").
-		Where("reports.date >= ? AND reports.date < ?", startOfMonth, endOfMonth).
+		Where("reports.date >= ? AND reports.date <= ?", start, end).
 		Select("COALESCE(SUM(tasks.hours), 0)").
-		Scan(&monthlyHours).Error; err != nil {
+		Scan(&totalHours).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "获取工时统计失败",
 		})
 		return
 	}
-	summary.MonthlyHours = monthlyHours
+	summary.TotalHours = totalHours
 
 	// 5. 获取项目工时分布
 	var projectHours []model.ProjectHoursStat
@@ -81,7 +137,7 @@ func GetAnalyticsSummary(c *gin.Context) {
 		Select("projects.id as project_id, projects.name as project_name, COALESCE(SUM(tasks.hours), 0) as hours").
 		Joins("JOIN reports ON tasks.report_id = reports.id").
 		Joins("JOIN projects ON tasks.project_id = projects.id").
-		Where("reports.date >= ? AND reports.date < ?", startOfMonth, endOfMonth).
+		Where("reports.date >= ? AND reports.date <= ?", start, end).
 		Group("projects.id, projects.name").
 		Having("hours > 0").
 		Order("hours DESC").
@@ -99,7 +155,7 @@ func GetAnalyticsSummary(c *gin.Context) {
 		Select("users.username, COALESCE(SUM(tasks.hours), 0) as hours").
 		Joins("JOIN reports ON tasks.report_id = reports.id").
 		Joins("JOIN users ON reports.user_id = users.id").
-		Where("reports.date >= ? AND reports.date < ?", startOfMonth, endOfMonth).
+		Where("reports.date >= ? AND reports.date <= ?", start, end).
 		Group("users.username").
 		Having("hours > 0").
 		Order("hours DESC").
@@ -112,10 +168,10 @@ func GetAnalyticsSummary(c *gin.Context) {
 	}
 
 	// 7. 获取每日项目工时统计
-	currentDate := startOfMonth
-	for currentDate.Before(endOfMonth) {
+	currentDate := start
+	for !currentDate.After(end) {
 		dayStart := currentDate
-		dayEnd := currentDate.Add(24 * time.Hour)
+		dayEnd := time.Date(currentDate.Year(), currentDate.Month(), currentDate.Day(), 23, 59, 59, 999999999, currentDate.Location())
 
 		var dayStats model.ProjectDailyHoursStat
 		dayStats.Date = currentDate.Format("2006-01-02")
@@ -126,7 +182,7 @@ func GetAnalyticsSummary(c *gin.Context) {
 			Select("projects.id as project_id, projects.name as project_name, COALESCE(SUM(tasks.hours), 0) as hours").
 			Joins("JOIN reports ON tasks.report_id = reports.id").
 			Joins("JOIN projects ON tasks.project_id = projects.id").
-			Where("reports.date >= ? AND reports.date < ?", dayStart, dayEnd).
+			Where("reports.date >= ? AND reports.date <= ?", dayStart, dayEnd).
 			Group("projects.id, projects.name").
 			Having("hours > 0").
 			Order("hours DESC").
@@ -138,8 +194,7 @@ func GetAnalyticsSummary(c *gin.Context) {
 		currentDate = currentDate.AddDate(0, 0, 1)
 	}
 
-	// 8. 获取日报提交率趋势（最近30天）
-	startDate := now.AddDate(0, 0, -29)
+	// 8. 获取日报提交率趋势
 	var submissionStats []struct {
 		Date      string
 		Submitted int64
@@ -164,7 +219,7 @@ func GetAnalyticsSummary(c *gin.Context) {
         WHERE users.created_at <= dates.date
         GROUP BY dates.date
         ORDER BY dates.date
-    `, startDate.Format("2006-01-02"), now.Format("2006-01-02")).
+    `, startDate, endDate).
 		Scan(&submissionStats).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,

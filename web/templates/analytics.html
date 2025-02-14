@@ -104,6 +104,34 @@
     <div class="container mt-4">
         <h2 class="mb-4">统计分析</h2>
         
+        <!-- 时间范围选择器 -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-4">
+                        <select class="form-select" id="presetRange">
+                            <option value="today">今日</option>
+                            <option value="week">本周</option>
+                            <option value="month" selected>本月</option>
+                            <option value="last_month">上月</option>
+                            <option value="7days">最近7天</option>
+                            <option value="30days">最近30天</option>
+                            <option value="90days">最近90天</option>
+                            <option value="quarter">本季度</option>
+                            <option value="year">本年度</option>
+                            <option value="custom">自定义范围</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <input type="date" class="form-control" id="startDate">
+                    </div>
+                    <div class="col-md-4">
+                        <input type="date" class="form-control" id="endDate">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- 统计卡片 -->
         <div class="row mb-4">
             <div class="col-md-3">
@@ -126,7 +154,7 @@
                 <div class="card stats-card">
                     <div class="card-body">
                         <div class="stats-value" id="monthlyReports">-</div>
-                        <div class="stats-label">本月日报数</div>
+                        <div class="stats-label">日报数</div>
                     </div>
                 </div>
             </div>
@@ -134,7 +162,7 @@
                 <div class="card stats-card">
                     <div class="card-body">
                         <div class="stats-value" id="monthlyHours">-</div>
-                        <div class="stats-label">本月总工时</div>
+                        <div class="stats-label">总工时</div>
                     </div>
                 </div>
             </div>
@@ -208,9 +236,168 @@
                 });
         }
 
-        // 加载统计数据
-        function loadAnalytics() {
-            fetch('/api/analytics/summary')
+        // 时间范围管理类
+        class TimeRangeManager {
+            constructor() {
+                this.presetSelect = document.getElementById('presetRange');
+                this.startDateInput = document.getElementById('startDate');
+                this.endDateInput = document.getElementById('endDate');
+                
+                this.initializeEventListeners();
+                this.setDefaultDates();
+            }
+
+            initializeEventListeners() {
+                this.presetSelect.addEventListener('change', () => this.handlePresetChange());
+                this.startDateInput.addEventListener('change', () => this.handleDateChange());
+                this.endDateInput.addEventListener('change', () => this.handleDateChange());
+            }
+
+            setDefaultDates() {
+                const today = new Date();
+                const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+                this.startDateInput.value = this.formatDate(firstDayOfMonth);
+                this.endDateInput.value = this.formatDate(lastDayOfMonth);
+            }
+
+            handlePresetChange() {
+                const preset = this.presetSelect.value;
+                const dates = this.getPresetDates(preset);
+                
+                this.startDateInput.value = this.formatDate(dates.start);
+                this.endDateInput.value = this.formatDate(dates.end);
+
+                if (preset !== 'custom') {
+                    this.handleApply();
+                }
+            }
+
+            handleDateChange() {
+                this.presetSelect.value = 'custom';
+                const startDate = this.startDateInput.value;
+                const endDate = this.endDateInput.value;
+
+                if (startDate && endDate && this.validateDateRange(startDate, endDate)) {
+                    loadAnalytics({
+                        start_date: startDate,
+                        end_date: endDate,
+                        preset: 'custom'
+                    });
+                }
+            }
+
+            handleApply() {
+                const startDate = this.startDateInput.value;
+                const endDate = this.endDateInput.value;
+                const preset = this.presetSelect.value;
+
+                if (!this.validateDateRange(startDate, endDate)) {
+                    alert('请选择有效的日期范围！');
+                    return;
+                }
+
+                // 重新加载统计数据
+                loadAnalytics({
+                    start_date: startDate,
+                    end_date: endDate,
+                    preset: preset
+                });
+            }
+
+            getPresetDates(preset) {
+                const today = new Date();
+                const result = {
+                    start: new Date(),
+                    end: new Date()
+                };
+
+                switch (preset) {
+                    case 'today':
+                        result.start = today;
+                        result.end = today;
+                        break;
+                    case 'week':
+                        const firstDayOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
+                        result.start = firstDayOfWeek;
+                        result.end = new Date(firstDayOfWeek);
+                        result.end.setDate(result.end.getDate() + 6);
+                        break;
+                    case 'month':
+                        result.start = new Date(today.getFullYear(), today.getMonth(), 1);
+                        result.end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                        break;
+                    case 'last_month':
+                        result.start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                        result.end = new Date(today.getFullYear(), today.getMonth(), 0);
+                        break;
+                    case '7days':
+                        result.end = today;
+                        result.start = new Date(today);
+                        result.start.setDate(result.start.getDate() - 6);
+                        break;
+                    case '30days':
+                        result.end = today;
+                        result.start = new Date(today);
+                        result.start.setDate(result.start.getDate() - 29);
+                        break;
+                    case '90days':
+                        result.end = today;
+                        result.start = new Date(today);
+                        result.start.setDate(result.start.getDate() - 89);
+                        break;
+                    case 'quarter':
+                        const quarter = Math.floor(today.getMonth() / 3);
+                        result.start = new Date(today.getFullYear(), quarter * 3, 1);
+                        result.end = new Date(today.getFullYear(), (quarter + 1) * 3, 0);
+                        break;
+                    case 'year':
+                        result.start = new Date(today.getFullYear(), 0, 1);
+                        result.end = new Date(today.getFullYear(), 11, 31);
+                        break;
+                }
+
+                return result;
+            }
+
+            validateDateRange(startDate, endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                
+                if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                    return false;
+                }
+                
+                if (start > end) {
+                    return false;
+                }
+                
+                // 限制查询范围不超过1年
+                const oneYear = 365 * 24 * 60 * 60 * 1000;
+                if (end - start > oneYear) {
+                    return false;
+                }
+                
+                return true;
+            }
+
+            formatDate(date) {
+                return date.toISOString().split('T')[0];
+            }
+        }
+
+        // 修改现有的 loadAnalytics 函数
+        function loadAnalytics(timeRange = null) {
+            const url = new URL('/api/analytics/summary', window.location.origin);
+            
+            if (timeRange) {
+                url.searchParams.append('start_date', timeRange.start_date);
+                url.searchParams.append('end_date', timeRange.end_date);
+                url.searchParams.append('preset', timeRange.preset);
+            }
+
+            fetch(url)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -229,6 +416,21 @@
             document.getElementById('totalProjects').textContent = data.total_projects;
             document.getElementById('monthlyReports').textContent = data.monthly_reports;
             document.getElementById('monthlyHours').textContent = Math.round(data.monthly_hours);
+
+            // 更新统计卡片的时间范围标签
+            if (data.time_range) {
+                const startDate = new Date(data.time_range.start_date);
+                const endDate = new Date(data.time_range.end_date);
+                const dateRangeText = startDate.toLocaleDateString() + ' 至 ' + endDate.toLocaleDateString();
+                
+                // 添加时间范围提示
+                document.querySelectorAll('.stats-card').forEach(card => {
+                    const label = card.querySelector('.stats-label');
+                    if (label && (label.textContent === '日报数' || label.textContent === '总工时')) {
+                        card.setAttribute('title', '统计范围：' + dateRangeText);
+                    }
+                });
+            }
         }
 
         // 声明全局变量来存储图表实例
@@ -640,6 +842,7 @@
         // 页面加载时检查登录状态
         document.addEventListener('DOMContentLoaded', function() {
             checkLoginStatus();
+            new TimeRangeManager();
         });
     </script>
 </body>
