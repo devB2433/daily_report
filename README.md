@@ -1,6 +1,6 @@
 # 工作日报系统
 
-一个现代化的工作日报管理系统，支持项目管理、工时统计和数据分析。
+一个简单的工作日报管理系统，支持项目管理、工时统计和数据分析。使用Cursor编写。
 
 ## 功能特性
 
@@ -45,19 +45,13 @@
 
 ### 生产环境
 
-1. 修改配置文件：
-   - 复制 `config/config.yaml.example` 为 `config/config.yaml`
-   - 修改数据库密码和 JWT 密钥等敏感信息
-
-2. 启动系统：
+1. 构建并启动系统：
    ```bash
-   docker-compose up -d --build
-   ```
-
-3. 检查系统状态：
-   ```bash
-   docker-compose ps
-   docker-compose logs -f
+   # 强制重新构建所有镜像
+   docker-compose -f docker-compose.yml build --no-cache
+   
+   # 启动系统
+   docker-compose -f docker-compose.yml up -d
    ```
 
 ## 默认账户
@@ -128,29 +122,13 @@ docker-compose logs -f mysql
 git pull
 
 # 重新构建并启动
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+docker-compose -f docker-compose.yml down
+docker-compose -f docker-compose.yml build --no-cache
+docker-compose -f docker-compose.yml up -d
 ```
 
-## 常见问题
+## 关于如何使用
+1、管理员登陆后，可以创建项目。
+2、普通成员首先应注册账号，成员登陆后，可以提交日报，查看日报。
+3、管理员可以查看所有成员的日报，也可以查看统计。
 
-1. 数据库连接失败
-   - 检查数据库容器是否正常运行
-   - 验证数据库配置信息是否正确
-
-2. 无法访问系统
-   - 确认容器运行状态
-   - 检查端口映射是否正确
-   - 查看应用日志寻找错误信息
-
-## 贡献指南
-
-1. Fork 项目仓库
-2. 创建特性分支
-3. 提交代码变更
-4. 创建 Pull Request
-
-## 许可证
-
-[MIT License](LICENSE) 
