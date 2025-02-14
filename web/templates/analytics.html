@@ -166,16 +166,22 @@
             </div>
         </div>
 
-        <!-- 图表区域 -->
-        <div class="row">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">项目工时分布</h5>
-                        <div class="chart-container">
-                            <canvas id="projectHoursChart"></canvas>
-                        </div>
-                    </div>
+        <!-- 项目工时分布 -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">项目工时分布</h5>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-primary active" onclick="switchChartType('pie')" id="pieChartBtn">
+                        <i class="bi bi-pie-chart"></i> 饼图
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="switchChartType('bar')" id="barChartBtn">
+                        <i class="bi bi-bar-chart"></i> 柱状图
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div style="height: 400px;">
+                    <canvas id="projectHoursChart"></canvas>
                 </div>
             </div>
         </div>
@@ -198,7 +204,7 @@
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title">用户工时统计</h5>
-                        <div class="chart-container">
+                        <div style="height: 400px;">
                             <canvas id="userHoursChart"></canvas>
                         </div>
                     </div>
@@ -431,10 +437,12 @@
             }
         }
 
-        // 声明全局变量来存储图表实例
+        // 声明全局变量来存储图表实例和数据
         let projectHoursChart = null;
         let projectTrendChart = null;
         let userHoursChart = null;
+        let currentChartType = 'pie';
+        let summaryData = null;
 
         // 生成图表颜色
         function getChartColors(count) {
@@ -460,27 +468,39 @@
             return colors;
         }
 
-        // 创建项目工时分布图
-        function createProjectHoursChart(data) {
-            if (!data || !data.project_hours || data.project_hours.length === 0) return;
+        // 切换图表类型
+        function switchChartType(type) {
+            currentChartType = type;
+            // 更新按钮状态
+            document.getElementById('pieChartBtn').classList.toggle('active', type === 'pie');
+            document.getElementById('barChartBtn').classList.toggle('active', type === 'bar');
             
-            const ctx = document.getElementById('projectHoursChart');
-            if (!ctx) return;
+            // 重新渲染图表
+            renderProjectHoursChart(summaryData.project_hours);
+        }
 
-            // 如果图表已存在，先销毁
+        // 渲染项目工时分布图表
+        function renderProjectHoursChart(data) {
+            const ctx = document.getElementById('projectHoursChart').getContext('2d');
+            
+            // 如果已存在图表，销毁它
             if (projectHoursChart) {
                 projectHoursChart.destroy();
             }
 
-            projectHoursChart = new Chart(ctx, {
-                type: 'pie',
+            const totalHours = data.reduce((sum, item) => sum + item.hours, 0);
+
+            const chartConfig = {
+                type: currentChartType,
                 data: {
-                    labels: data.project_hours.map(p => p.project_name),
+                    labels: data.map(item => item.project_name),
                     datasets: [{
-                        data: data.project_hours.map(p => p.hours),
-                        backgroundColor: getChartColors(data.project_hours.length),
-                        borderWidth: 0,
-                        hoverOffset: 4
+                        label: '工时',
+                        data: data.map(item => item.hours),
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                            '#FF9F40', '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'
+                        ]
                     }]
                 },
                 options: {
@@ -488,74 +508,60 @@
                     maintainAspectRatio: false,
                     plugins: {
                         title: {
-                            display: true,
-                            text: '项目工时分布',
-                            font: {
-                                size: 16,
-                                weight: 'bold'
-                            },
-                            padding: {
-                                top: 10,
-                                bottom: 20
-                            }
+                            display: false
                         },
                         legend: {
-                            position: 'right',
+                            position: currentChartType === 'pie' ? 'right' : 'top',
                             labels: {
-                                padding: 20,
-                                usePointStyle: true,
-                                pointStyle: 'circle',
-                                boxWidth: 10,
-                                boxHeight: 10,
                                 font: {
                                     size: 12
-                                },
-                                generateLabels: function(chart) {
-                                    const data = chart.data;
-                                    return data.labels.map((label, i) => ({
-                                        text: `${label} (${Math.round(data.datasets[0].data[i])}h)`,
-                                        fillStyle: data.datasets[0].backgroundColor[i],
-                                        strokeStyle: data.datasets[0].backgroundColor[i],
-                                        lineWidth: 0,
-                                        hidden: isNaN(data.datasets[0].data[i]) || data.datasets[0].data[i] === 0,
-                                        index: i,
-                                        pointStyle: 'circle'
-                                    }));
-                                }
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.label || '';
-                                    const value = Math.round(context.parsed);
-                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                    const percentage = Math.round((context.parsed / total) * 100);
-                                    return `${label}: ${value}小时 (${percentage}%)`;
                                 }
                             }
                         },
                         datalabels: {
-                            formatter: function(value, context) {
-                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const percentage = Math.round((value / total) * 100);
-                                return `${Math.round(value)}h\n(${percentage}%)`;
+                            color: currentChartType === 'pie' ? '#fff' : '#666',
+                            anchor: currentChartType === 'pie' ? 'center' : 'end',
+                            align: currentChartType === 'pie' ? 'center' : 'top',
+                            formatter: (value, ctx) => {
+                                if (currentChartType === 'pie') {
+                                    const percentage = ((value / totalHours) * 100).toFixed(1) + '%';
+                                    return percentage;
+                                } else {
+                                    return value.toFixed(1) + '小时';
+                                }
                             },
-                            color: '#fff',
                             font: {
-                                weight: 'bold',
-                                size: 12
-                            },
-                            textAlign: 'center',
-                            textStrokeColor: '#000',
-                            textStrokeWidth: 1,
-                            textShadowBlur: 5,
-                            textShadowColor: 'rgba(0,0,0,0.35)'
+                                weight: 'bold'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const value = context.raw;
+                                    const percentage = ((value / totalHours) * 100).toFixed(1);
+                                    return `${context.label}: ${value.toFixed(1)}小时 (${percentage}%)`;
+                                }
+                            }
                         }
-                    }
+                    },
+                    scales: currentChartType === 'bar' ? {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '工时（小时）',
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            }
+                        }
+                    } : undefined
                 },
                 plugins: [ChartDataLabels]
-            });
+            };
+
+            projectHoursChart = new Chart(ctx, chartConfig);
         }
 
         // 创建项目工时趋势图
@@ -760,6 +766,11 @@
                 userHoursChart.destroy();
             }
 
+            // 计算最大工时值，用于设置Y轴的最大值
+            const maxHours = Math.max(...data.user_hours.map(u => u.hours));
+            // 向上取整到最接近的10的倍数，并增加一些空间
+            const yAxisMax = Math.ceil(maxHours / 10) * 10 + 10;
+
             userHoursChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -768,12 +779,18 @@
                         label: '工时',
                         data: data.user_hours.map(u => u.hours),
                         backgroundColor: getChartColors(data.user_hours.length),
-                        borderWidth: 0
+                        borderWidth: 0,
+                        maxBarThickness: 50  // 限制柱子最大宽度
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            top: 20  // 为数据标签预留空间
+                        }
+                    },
                     plugins: {
                         legend: {
                             display: false
@@ -781,7 +798,7 @@
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    return `${context.parsed.y} 小时`;
+                                    return `${context.parsed.y.toFixed(1)} 小时`;
                                 }
                             }
                         },
@@ -801,15 +818,31 @@
                     scales: {
                         y: {
                             beginAtZero: true,
+                            max: yAxisMax,  // 设置Y轴最大值
                             title: {
                                 display: true,
-                                text: '工时'
+                                text: '工时（小时）',
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                stepSize: Math.ceil(yAxisMax / 10)  // 设置刻度间隔
                             }
                         },
                         x: {
                             title: {
                                 display: true,
-                                text: '用户'
+                                text: '用户',
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                maxRotation: 45,  // 允许标签旋转
+                                minRotation: 45   // 强制标签旋转
                             }
                         }
                     }
@@ -825,8 +858,10 @@
                 return;
             }
 
+            summaryData = data; // 保存数据到全局变量
+
             // 按顺序创建所有图表
-            createProjectHoursChart(data);
+            renderProjectHoursChart(data.project_hours);
             createProjectTrendChart(data);
             createUserHoursChart(data);
         }
