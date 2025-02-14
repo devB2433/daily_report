@@ -139,7 +139,7 @@
                 remember_me: formData.get('rememberMe') === 'on'
             };
 
-            console.log('发送登录请求:', requestData);
+            // console.log('发送登录请求:', requestData);
 
             try {
                 const response = await fetch('/api/login', {
@@ -150,9 +150,9 @@
                     body: JSON.stringify(requestData)
                 });
 
-                console.log('服务器响应状态:', response.status);
+                // console.log('服务器响应状态:', response.status);
                 const responseText = await response.text();
-                console.log('服务器响应内容:', responseText);
+                // console.log('服务器响应内容:', responseText);
 
                 let data;
                 try {

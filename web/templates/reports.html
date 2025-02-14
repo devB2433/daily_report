@@ -175,7 +175,7 @@
             fetch('/api/reports')
                 .then(response => response.json())
                 .then(data => {
-                    console.log('日报数据:', data);
+                    // console.log('日报数据:', data);
                     if (data.success) {
                         const reportList = document.getElementById('reportList');
                         reportList.innerHTML = '';

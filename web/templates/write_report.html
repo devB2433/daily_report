@@ -192,7 +192,6 @@
             fetch('/api/projects')
                 .then(response => response.json())
                 .then(data => {
-                    console.log('项目列表数据:', data);
                     if (data.success) {
                         projectList = data.data.filter(project => project.status !== 'completed'); // 过滤掉已完成的项目
                         const options = generateProjectOptions();
@@ -325,8 +324,6 @@
                         items: tasks
                     };
 
-                    console.log('提交的数据:', submitData);
-
                     return fetch('/api/reports', {
                         method: 'POST',
                         headers: {
@@ -338,13 +335,8 @@
                     });
                 })
                 .then(response => {
-                    console.log('响应状态:', response.status);
-                    console.log('响应头:', Object.fromEntries(response.headers.entries()));
-                    
-                    // 检查响应状态
                     if (!response.ok) {
                         return response.text().then(text => {
-                            console.log('错误响应内容:', text);
                             try {
                                 if (text) {
                                     const errorData = JSON.parse(text);
@@ -363,7 +355,6 @@
                     
                     // 处理成功响应
                     return response.text().then(text => {
-                        console.log('成功响应内容:', text);
                         if (!text) {
                             throw new Error('服务器返回空响应');
                         }
@@ -380,7 +371,6 @@
                     if (!result) {
                         throw new Error('处理响应失败');
                     }
-                    console.log('处理响应:', result);
                     if (result.success) {
                         alert('日报提交成功！');
                         window.location.href = '/reports';

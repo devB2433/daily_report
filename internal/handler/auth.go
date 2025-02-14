@@ -183,7 +183,7 @@ func RegisterHandler(c *gin.Context) {
 func LoginHandler(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("登录请求数据无效: %v", err)
+		// log.Printf("登录请求数据无效: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "请求数据无效",
@@ -191,11 +191,11 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
-	log.Printf("收到登录请求 - 邮箱: %s", req.Email)
+	// log.Printf("收到登录请求 - 邮箱: %s", req.Email)
 
 	// 验证邮箱域名
 	if !strings.HasSuffix(req.Email, "@blingsec.cn") {
-		log.Printf("邮箱域名无效: %s", req.Email)
+		// log.Printf("邮箱域名无效: %s", req.Email)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "请使用 @blingsec.cn 结尾的邮箱",
@@ -208,7 +208,7 @@ func LoginHandler(c *gin.Context) {
 	// 查找用户
 	var user model.User
 	if err := db.Where("email = ?", req.Email).First(&user).Error; err != nil {
-		log.Printf("用户不存在: %s, 错误: %v", req.Email, err)
+		// log.Printf("用户不存在: %s, 错误: %v", req.Email, err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "用户不存在",
@@ -216,12 +216,12 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
-	log.Printf("找到用户 - ID: %d, 用户名: %s, 邮箱: %s, 密码哈希: %s",
-		user.ID, user.Username, user.Email, user.PasswordHash)
+	// log.Printf("找到用户 - ID: %d, 用户名: %s, 邮箱: %s, 密码哈希: %s",
+	//     user.ID, user.Username, user.Email, user.PasswordHash)
 
 	// 验证密码
 	if !user.CheckPassword(req.Password) {
-		log.Printf("密码验证失败 - 用户: %s, 输入的密码: %s", user.Username, req.Password)
+		// log.Printf("密码验证失败 - 用户: %s, 输入的密码: %s", user.Username, req.Password)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "密码错误",
@@ -229,12 +229,12 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
-	log.Printf("密码验证成功 - 用户: %s", user.Username)
+	// log.Printf("密码验证成功 - 用户: %s", user.Username)
 
 	// 更新最后登录时间
 	user.UpdateLastLogin()
 	if err := db.Save(&user).Error; err != nil {
-		log.Printf("更新最后登录时间失败: %v", err)
+		// log.Printf("更新最后登录时间失败: %v", err)
 	}
 
 	// 设置登录Cookie
@@ -248,7 +248,7 @@ func LoginHandler(c *gin.Context) {
 	c.SetCookie("username", user.Username, maxAge, "/", "", false, true)
 	c.SetCookie("role", user.Role, maxAge, "/", "", false, true)
 
-	log.Printf("登录成功 - 用户: %s, 角色: %s", user.Username, user.Role)
+	// log.Printf("登录成功 - 用户: %s, 角色: %s", user.Username, user.Role)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

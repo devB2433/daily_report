@@ -44,14 +44,27 @@ func GetConfig() *Config {
 	once.Do(func() {
 		config = &Config{}
 
-		// 读取配置文件
-		data, err := os.ReadFile("config/config.yaml")
-		if err != nil {
-			log.Fatal("Failed to read config file:", err)
+		// 尝试从当前目录和上级目录加载配置文件
+		configPaths := []string{
+			"config/config.yaml",
+			"../config/config.yaml",
+		}
+
+		var data []byte
+		var readErr error
+		for _, path := range configPaths {
+			data, readErr = os.ReadFile(path)
+			if readErr == nil {
+				break
+			}
+		}
+
+		if readErr != nil {
+			log.Fatal("Failed to read config file:", readErr)
 		}
 
 		// 解析配置文件
-		err = yaml.Unmarshal(data, config)
+		err := yaml.Unmarshal(data, config)
 		if err != nil {
 			log.Fatal("Failed to parse config file:", err)
 		}

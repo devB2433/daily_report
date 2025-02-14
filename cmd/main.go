@@ -50,7 +50,7 @@ func main() {
 
 	// 启动服务器
 	addr := fmt.Sprintf("0.0.0.0:%d", cfg.Server.Port)
-	log.Printf("服务器启动在 http://localhost:%d\n", cfg.Server.Port)
+	// log.Printf("服务器启动在 http://localhost:%d\n", cfg.Server.Port)
 	if err := r.Run(addr); err != nil {
 		log.Fatal("服务器启动失败:", err)
 	}
@@ -116,7 +116,7 @@ func setupRoutes(r *gin.Engine) {
 		role, _ := c.Cookie("role")
 
 		// 添加日志
-		log.Printf("用户信息 - 用户名: %s, 角色: %s", username, role)
+		// log.Printf("用户信息 - 用户名: %s, 角色: %s", username, role)
 
 		data := gin.H{
 			"title": "工作管理系统",
@@ -128,7 +128,7 @@ func setupRoutes(r *gin.Engine) {
 		}
 
 		// 打印传递给模板的数据
-		log.Printf("传递给模板的数据: %+v", data)
+		// log.Printf("传递给模板的数据: %+v", data)
 
 		c.HTML(http.StatusOK, "index.html", data)
 	})
