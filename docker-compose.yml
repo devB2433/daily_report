@@ -13,10 +13,30 @@ services:
       - DB_NAME=daily_report
       - DB_CHARSET=utf8mb4
       - DB_LOC=Local
+      - TZ=Asia/Shanghai
     depends_on:
       mysql:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - daily-report-net
 
@@ -27,19 +47,31 @@ services:
       - MYSQL_DATABASE=daily_report
       - MYSQL_USER=daily_report
       - MYSQL_PASSWORD=daily_report_password
-    ports:
-      - "3306:3306"
+      - TZ=Asia/Shanghai
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "daily_report", "-pdaily_report_password"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 3
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - daily-report-net
 

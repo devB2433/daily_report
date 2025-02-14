@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"daily-report/internal/config"
 	"daily-report/internal/database"
@@ -47,6 +48,14 @@ func main() {
 
 	// 设置路由
 	setupRoutes(r)
+
+	// 添加健康检查端点
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"time":   time.Now().Format(time.RFC3339),
+		})
+	})
 
 	// 启动服务器
 	addr := fmt.Sprintf("0.0.0.0:%d", cfg.Server.Port)
