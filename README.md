@@ -1,84 +1,156 @@
-# 日报管理系统
+# 工作日报系统
 
-这是一个基于 Go 语言开发的日报管理系统，使用 Gin 框架和 MySQL 数据库。
+一个现代化的工作日报管理系统，支持项目管理、工时统计和数据分析。
 
 ## 功能特性
 
-- 用户管理：注册、登录、权限控制
-- 项目管理：创建、编辑、删除项目
-- 日报管理：提交日报、查看历史日报
-- 统计分析：工时统计、项目分析、提交率分析
+- 用户管理：支持用户注册、登录和权限控制
+- 项目管理：创建和管理项目，跟踪项目状态
+- 日报管理：便捷的日报提交和查看功能
+- 数据分析：工时统计和项目进展可视化
+- 响应式设计：支持多种设备访问
 
-## 技术栈
+## 系统要求
 
-- 后端：Go + Gin + GORM
-- 前端：Bootstrap + Chart.js
-- 数据库：MySQL 8.0
-- 容器化：Docker + Docker Compose
+- Docker 20.10.0 或更高版本
+- Docker Compose 2.0.0 或更高版本
+- 至少 2GB 可用内存
+- 至少 1GB 可用磁盘空间
 
 ## 快速开始
 
-### 使用 Docker Compose 部署
+### 开发环境
 
-1. 确保已安装 Docker 和 Docker Compose
+1. 克隆代码仓库：
+   ```bash
+   git clone <repository-url>
+   cd daily-report
+   ```
 
-2. 克隆项目
+2. 使用开发配置启动系统：
+   ```bash
+   docker-compose -f docker-compose.dev.yml up --build
+   ```
+
+3. 导入测试数据（可选）：
+   ```bash
+   # 连接到 MySQL 容器
+   docker exec -it daily_report-mysql-1 mysql -udaily_report -pdaily_report_password daily_report
+
+   # 在 MySQL 命令行中执行
+   source /docker-entrypoint-initdb.d/mock_users.sql
+   source /docker-entrypoint-initdb.d/mock_projects.sql
+   source /docker-entrypoint-initdb.d/mock_reports.sql
+   ```
+
+### 生产环境
+
+1. 修改配置文件：
+   - 复制 `config/config.yaml.example` 为 `config/config.yaml`
+   - 修改数据库密码和 JWT 密钥等敏感信息
+
+2. 启动系统：
+   ```bash
+   docker-compose up -d --build
+   ```
+
+3. 检查系统状态：
+   ```bash
+   docker-compose ps
+   docker-compose logs -f
+   ```
+
+## 默认账户
+
+系统首次启动时会自动创建管理员账户：
+- 邮箱：admin@blingsec.cn
+- 密码：Kj#9mP$2nL5vB@8x
+
+建议首次登录后立即修改密码。
+
+## 开发与生产环境区别
+
+### 开发环境 (docker-compose.dev.yml)
+- 启用调试模式
+- 代码热重载
+- 详细日志输出
+- 暴露数据库端口便于调试
+- 挂载源代码目录实现实时更新
+
+### 生产环境 (docker-compose.yml)
+- 发布模式运行
+- 优化的性能配置
+- 最小化日志输出
+- 仅暴露必要端口
+- 资源使用限制
+- 容器健康检查
+- 自动服务恢复
+
+## 测试数据说明
+
+系统提供了三个测试数据脚本：
+
+1. `mock_users.sql`: 创建测试用户账号
+   - 包含不同角色的用户
+   - 预设的用户名和密码
+
+2. `mock_projects.sql`: 创建示例项目
+   - 包含不同状态的项目
+   - 模拟真实项目数据
+
+3. `mock_reports.sql`: 生成历史日报数据
+   - 包含多个时间段的日报
+   - 不同项目的工时分配
+
+## 系统维护
+
+### 数据备份
 ```bash
-git clone [项目地址]
-cd daily-report
+# 备份数据库
+docker exec daily_report-mysql-1 mysqldump -u daily_report -p daily_report > backup.sql
+
+# 恢复数据库
+docker exec -i daily_report-mysql-1 mysql -u daily_report -p daily_report < backup.sql
 ```
 
-3. 启动服务
+### 日志查看
 ```bash
+# 查看应用日志
+docker-compose logs -f app
+
+# 查看数据库日志
+docker-compose logs -f mysql
+```
+
+### 系统更新
+```bash
+# 拉取最新代码
+git pull
+
+# 重新构建并启动
+docker-compose down
+docker-compose build --no-cache
 docker-compose up -d
 ```
 
-4. 访问系统
-- 地址：http://localhost:8080
-- 默认管理员账号：
-  - 邮箱：admin@blingsec.cn
-  - 密码：Kj#9mP$2nL5vB@8x
+## 常见问题
 
-### 手动部署
+1. 数据库连接失败
+   - 检查数据库容器是否正常运行
+   - 验证数据库配置信息是否正确
 
-1. 安装 Go 1.21 或更高版本
+2. 无法访问系统
+   - 确认容器运行状态
+   - 检查端口映射是否正确
+   - 查看应用日志寻找错误信息
 
-2. 安装并配置 MySQL 8.0
+## 贡献指南
 
-3. 克隆项目并安装依赖
-```bash
-git clone [项目地址]
-cd daily-report
-go mod download
-```
-
-4. 配置数据库连接
-- 修改 config/config.yaml 文件中的数据库配置
-
-5. 运行项目
-```bash
-go run cmd/main.go
-```
-
-## 配置说明
-
-### 环境变量
-
-- `DB_HOST`: 数据库主机地址
-- `DB_PORT`: 数据库端口
-- `DB_USER`: 数据库用户名
-- `DB_PASSWORD`: 数据库密码
-- `DB_NAME`: 数据库名称
-- `DB_CHARSET`: 数据库字符集
-- `DB_LOC`: 数据库时区
-
-## 注意事项
-
-1. 首次使用请修改默认管理员密码
-2. 建议在生产环境中修改数据库密码
-3. 生产环境部署时建议启用 HTTPS
-4. 定期备份数据库数据
+1. Fork 项目仓库
+2. 创建特性分支
+3. 提交代码变更
+4. 创建 Pull Request
 
 ## 许可证
 
-MIT License 
+[MIT License](LICENSE) 
