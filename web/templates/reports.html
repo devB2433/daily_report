@@ -142,8 +142,7 @@
         // 格式化日期时间
         function formatDateTime(dateStr) {
             const date = new Date(dateStr);
-            const pad = (num) => String(num).padStart(2, '0');
-            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+            return date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
         }
 
         // 删除日报
@@ -183,7 +182,7 @@
                         // 按日期对日报进行分组
                         const reportsByDate = {};
                         data.data.forEach(report => {
-                            const date = formatDateTime(report.date).split(' ')[0]; // 只取日期部分
+                            const date = report.date; // 使用完整的原始日期
                             if (!reportsByDate[date]) {
                                 reportsByDate[date] = {
                                     id: report.ID,
@@ -192,6 +191,10 @@
                                     submitted_at: report.submitted_at
                                 };
                             }
+                            // 清空之前的任务和工时，避免重复累加
+                            reportsByDate[date].tasks = [];
+                            reportsByDate[date].totalHours = 0;
+                            // 添加新的任务和工时
                             reportsByDate[date].tasks.push(...report.tasks);
                             report.tasks.forEach(task => {
                                 reportsByDate[date].totalHours += task.hours;
@@ -216,8 +219,7 @@
                             reportList.innerHTML += `
                                 <tr>
                                     <td class="align-middle">
-                                        <div class="fw-bold">${date}</div>
-                                        <small class="text-muted">提交于 ${formatDateTime(report.submitted_at).split(' ')[1]}</small>
+                                        <div class="fw-bold">${formatDateTime(date).split(' ')[0]}</div>
                                     </td>
                                     <td>${tasksHtml}</td>
                                     <td class="align-middle text-center">
@@ -266,12 +268,10 @@
                 .then(data => {
                     if (data.success) {
                         const report = data.data;
-                        const date = formatDateTime(report.date).split(' ')[0];
-                        const submitTime = formatDateTime(report.submitted_at);
                         
                         // 生成Markdown内容
-                        let mdContent = `# 工作日报 (${date})\n\n`;
-                        mdContent += `> 提交时间：${submitTime}\n`;
+                        let mdContent = `# 工作日报 (${report.date})\n\n`;
+                        mdContent += `> 提交时间：${report.submitted_at}\n`;
                         
                         let totalHours = 0;
                         report.tasks.forEach(task => {

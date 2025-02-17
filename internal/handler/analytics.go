@@ -36,12 +36,15 @@ func GetAnalyticsSummary(c *gin.Context) {
 	endDate := c.Query("end_date")
 	preset := c.Query("preset")
 
+	fmt.Printf("收到统计请求 - 开始日期: %s, 结束日期: %s, 预设: %s\n", startDate, endDate, preset)
+
 	// 如果没有提供时间范围，使用当月
 	if startDate == "" || endDate == "" {
 		now := time.Now()
 		startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Format("2006-01-02")
 		endDate = time.Date(now.Year(), now.Month()+1, 0, 23, 59, 59, 999999999, now.Location()).Format("2006-01-02")
 		preset = "month"
+		fmt.Printf("使用默认时间范围 - 开始日期: %s, 结束日期: %s\n", startDate, endDate)
 	}
 
 	// 解析时间
@@ -108,27 +111,38 @@ func GetAnalyticsSummary(c *gin.Context) {
 	}
 
 	// 3. 获取指定时间范围内的日报数
-	if err := db.Model(&model.Report{}).Where("date >= ? AND date <= ?", start, end).Count(&summary.TotalReports).Error; err != nil {
+	if err := db.Model(&model.Report{}).Unscoped().Where("DATE(date) >= DATE(?) AND DATE(date) <= DATE(?) AND deleted_at IS NULL", start, end).Count(&summary.TotalReports).Error; err != nil {
+		fmt.Printf("获取日报数失败: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "获取日报统计失败",
 		})
 		return
 	}
+	fmt.Printf("找到 %d 条日报记录\n", summary.TotalReports)
 
 	// 4. 获取指定时间范围内的总工时
 	var totalHours float64
-	if err := db.Model(&model.Task{}).
+	query := db.Model(&model.Task{}).
 		Joins("JOIN reports ON tasks.report_id = reports.id").
-		Where("reports.date >= ? AND reports.date <= ?", start, end).
-		Select("COALESCE(SUM(tasks.hours), 0)").
-		Scan(&totalHours).Error; err != nil {
+		Where("DATE(reports.date) >= DATE(?) AND DATE(reports.date) <= DATE(?) AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL", start, end).
+		Select("COALESCE(SUM(tasks.hours), 0)")
+
+	// 打印SQL查询语句
+	sql := query.ToSQL(func(tx *gorm.DB) *gorm.DB {
+		return tx.Where("DATE(reports.date) >= DATE(?) AND DATE(reports.date) <= DATE(?)", start, end)
+	})
+	fmt.Printf("总工时查询SQL: %s\n", sql)
+
+	if err := query.Scan(&totalHours).Error; err != nil {
+		fmt.Printf("获取总工时失败: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "获取工时统计失败",
 		})
 		return
 	}
+	fmt.Printf("总工时: %.1f 小时\n", totalHours)
 	summary.TotalHours = totalHours
 
 	// 5. 获取项目工时分布
@@ -137,7 +151,7 @@ func GetAnalyticsSummary(c *gin.Context) {
 		Select("projects.id as project_id, projects.name as project_name, COALESCE(SUM(tasks.hours), 0) as hours").
 		Joins("JOIN reports ON tasks.report_id = reports.id").
 		Joins("JOIN projects ON tasks.project_id = projects.id").
-		Where("reports.date >= ? AND reports.date <= ?", start, end).
+		Where("DATE(reports.date) >= DATE(?) AND DATE(reports.date) <= DATE(?) AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL", start, end).
 		Group("projects.id, projects.name").
 		Having("hours > 0").
 		Order("hours DESC").
@@ -155,7 +169,7 @@ func GetAnalyticsSummary(c *gin.Context) {
 		Select("users.username, COALESCE(SUM(tasks.hours), 0) as hours").
 		Joins("JOIN reports ON tasks.report_id = reports.id").
 		Joins("JOIN users ON reports.user_id = users.id").
-		Where("reports.date >= ? AND reports.date <= ?", start, end).
+		Where("DATE(reports.date) >= DATE(?) AND DATE(reports.date) <= DATE(?)", start, end).
 		Group("users.username").
 		Having("hours > 0").
 		Order("hours DESC").
@@ -171,24 +185,36 @@ func GetAnalyticsSummary(c *gin.Context) {
 	currentDate := start
 	for !currentDate.After(end) {
 		dayStart := currentDate
-		dayEnd := time.Date(currentDate.Year(), currentDate.Month(), currentDate.Day(), 23, 59, 59, 999999999, currentDate.Location())
 
 		var dayStats model.ProjectDailyHoursStat
 		dayStats.Date = currentDate.Format("2006-01-02")
 
 		// 获取当天的项目工时
 		var dayProjectHours []model.ProjectHoursStat
-		if err := db.Table("tasks").
+		query := db.Table("tasks").
 			Select("projects.id as project_id, projects.name as project_name, COALESCE(SUM(tasks.hours), 0) as hours").
 			Joins("JOIN reports ON tasks.report_id = reports.id").
 			Joins("JOIN projects ON tasks.project_id = projects.id").
-			Where("reports.date >= ? AND reports.date <= ?", dayStart, dayEnd).
+			Where("DATE(reports.date) = ? AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL", dayStart.Format("2006-01-02")).
 			Group("projects.id, projects.name").
 			Having("hours > 0").
-			Order("hours DESC").
-			Scan(&dayProjectHours).Error; err == nil {
+			Order("hours DESC")
+
+		// 打印SQL查询语句
+		sql := query.ToSQL(func(tx *gorm.DB) *gorm.DB {
+			return tx.Where("DATE(reports.date) = ?", dayStart.Format("2006-01-02"))
+		})
+		fmt.Printf("查询日期 %s 的SQL: %s\n", dayStart.Format("2006-01-02"), sql)
+
+		if err := query.Scan(&dayProjectHours).Error; err == nil {
+			fmt.Printf("日期 %s 找到 %d 个项目工时记录\n", dayStart.Format("2006-01-02"), len(dayProjectHours))
+			for _, ph := range dayProjectHours {
+				fmt.Printf("  - 项目: %s, 工时: %.1f\n", ph.ProjectName, ph.Hours)
+			}
 			dayStats.ProjectHours = dayProjectHours
 			summary.DailyStats = append(summary.DailyStats, dayStats)
+		} else {
+			fmt.Printf("日期 %s 查询出错: %v\n", dayStart.Format("2006-01-02"), err)
 		}
 
 		currentDate = currentDate.AddDate(0, 0, 1)

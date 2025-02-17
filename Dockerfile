@@ -22,10 +22,13 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o 
 # 使用轻量级基础镜像
 FROM alpine:latest
 
-# 设置时区
+# 设置时区 - 首先尝试从互联网获取，如果失败则使用 Asia/Shanghai
 RUN apk add --no-cache tzdata wget && \
-    cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    # 尝试从互联网获取时区
+    { wget -qO- http://worldtimeapi.org/api/ip | grep -o '"timezone":"[^"]*"' | cut -d'"' -f4 > /etc/timezone; } || \
+    # 如果获取失败，使用默认时区
     echo "Asia/Shanghai" > /etc/timezone && \
+    cp /usr/share/zoneinfo/$(cat /etc/timezone) /etc/localtime && \
     apk del tzdata
 
 # 创建非root用户

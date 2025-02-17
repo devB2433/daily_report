@@ -26,6 +26,22 @@ type CreateReportRequest struct {
 	Items      []ReportItem `json:"items" binding:"required,min=1,dive"`
 }
 
+// getTimeZone 获取时区
+func getTimeZone() *time.Location {
+	// 尝试从系统获取时区
+	if tz, err := time.LoadLocation("Local"); err == nil {
+		return tz
+	}
+
+	// 如果无法获取系统时区，使用默认时区
+	if loc, err := time.LoadLocation("Asia/Shanghai"); err == nil {
+		return loc
+	}
+
+	// 如果都失败了，返回 UTC
+	return time.UTC
+}
+
 // CreateReport 创建日报
 func CreateReport(c *gin.Context) {
 	// log.Printf("开始处理日报创建请求")
@@ -41,19 +57,6 @@ func CreateReport(c *gin.Context) {
 	}
 
 	// log.Printf("成功解析请求数据: %+v", req)
-
-	// 解析日报时间
-	reportTime, err := time.Parse("2006-01-02 15:04", req.ReportTime)
-	if err != nil {
-		// log.Printf("日报时间解析失败: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "日报时间格式无效",
-		})
-		return
-	}
-
-	// log.Printf("成功解析日报时间: %v", reportTime)
 
 	// 获取当前用户ID
 	userID, exists := c.Get("user_id")
@@ -95,6 +98,24 @@ func CreateReport(c *gin.Context) {
 
 	db := database.GetDB()
 
+	// 解析日报时间
+	loc := getTimeZone()
+	reportTime, err := time.ParseInLocation("2006-01-02 15:04", req.ReportTime, loc)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的日期格式",
+		})
+		return
+	}
+
+	// 创建日报记录
+	report := model.Report{
+		UserID:      uid,
+		Date:        reportTime,
+		SubmittedAt: time.Now().In(loc),
+	}
+
 	// 检查是否已存在当天的日报
 	var existingReport model.Report
 	err = db.Where("user_id = ? AND DATE(date) = DATE(?)", uid, reportTime).First(&existingReport).Error
@@ -132,13 +153,6 @@ func CreateReport(c *gin.Context) {
 			tx.Rollback()
 		}
 	}()
-
-	// 创建日报记录
-	report := model.Report{
-		UserID:      uid,
-		Date:        reportTime,
-		SubmittedAt: time.Now(),
-	}
 
 	if err := tx.Create(&report).Error; err != nil {
 		tx.Rollback()
@@ -291,7 +305,7 @@ func DeleteReport(c *gin.Context) {
 
 	// 先检查日报是否存在且属于当前用户
 	var report model.Report
-	if err := tx.Where("id = ? AND user_id = ?", id, userID).First(&report).Error; err != nil {
+	if err := tx.Unscoped().Where("id = ? AND user_id = ?", id, userID).First(&report).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
@@ -300,8 +314,8 @@ func DeleteReport(c *gin.Context) {
 		return
 	}
 
-	// 删除相关的任务
-	if err := tx.Where("report_id = ?", id).Delete(&model.Task{}).Error; err != nil {
+	// 物理删除相关的任务
+	if err := tx.Unscoped().Where("report_id = ?", id).Delete(&model.Task{}).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -310,8 +324,8 @@ func DeleteReport(c *gin.Context) {
 		return
 	}
 
-	// 删除日报
-	if err := tx.Delete(&report).Error; err != nil {
+	// 物理删除日报
+	if err := tx.Unscoped().Delete(&report).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -454,7 +468,7 @@ func GetMonthlyStats(c *gin.Context) {
 		Select("tasks.project_id, projects.name as project_name, SUM(tasks.hours) as total_hours").
 		Joins("JOIN reports ON tasks.report_id = reports.id").
 		Joins("JOIN projects ON tasks.project_id = projects.id").
-		Where("reports.user_id = ? AND reports.date >= ? AND reports.date < ?", userID, startDate, endDate).
+		Where("reports.user_id = ? AND reports.date >= ? AND reports.date < ? AND reports.deleted_at IS NULL AND tasks.deleted_at IS NULL", userID, startDate, endDate).
 		Group("tasks.project_id").
 		Order("total_hours DESC").
 		Scan(&projectStats).Error
@@ -483,7 +497,7 @@ func GetMonthlyStats(c *gin.Context) {
 			Select("tasks.project_id, projects.name as project_name, SUM(tasks.hours) as total_hours").
 			Joins("JOIN reports ON tasks.report_id = reports.id").
 			Joins("JOIN projects ON tasks.project_id = projects.id").
-			Where("reports.user_id = ? AND reports.date >= ? AND reports.date < ?", userID, dayStart, dayEnd).
+			Where("reports.user_id = ? AND reports.date >= ? AND reports.date < ? AND reports.deleted_at IS NULL AND tasks.deleted_at IS NULL", userID, dayStart, dayEnd).
 			Group("tasks.project_id").
 			Scan(&projectHours).Error
 
