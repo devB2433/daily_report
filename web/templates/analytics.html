@@ -234,7 +234,9 @@
                         document.getElementById('username').textContent = data.data.username;
                         document.getElementById('userDropdown').classList.remove('d-none');
                         document.getElementById('projectsLink').classList.remove('d-none'); // 显示项目管理链接
-                        loadAnalytics();
+                        
+                        // 初始化时间范围选择器
+                        timeRangeManager = new DateRangeSelector();
                     } else {
                         window.location.href = '/login';
                     }
@@ -245,30 +247,39 @@
                 });
         }
 
-        // 时间范围管理类
-        class TimeRangeManager {
+        // 时间范围选择器类
+        class DateRangeSelector {
             constructor() {
                 this.presetSelect = document.getElementById('presetRange');
                 this.startDateInput = document.getElementById('startDate');
                 this.endDateInput = document.getElementById('endDate');
-                
-                this.initializeEventListeners();
-                this.setDefaultDates();
-            }
 
-            initializeEventListeners() {
+                // 绑定事件处理器
                 this.presetSelect.addEventListener('change', () => this.handlePresetChange());
                 this.startDateInput.addEventListener('change', () => this.handleDateChange());
                 this.endDateInput.addEventListener('change', () => this.handleDateChange());
+
+                // 初始化默认时间范围并加载数据
+                this.initializeTimeRange();
             }
 
-            setDefaultDates() {
-                const today = new Date();
-                const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-                const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            initializeTimeRange() {
+                const preset = this.presetSelect.value;
+                const dates = this.getPresetDates(preset);
+                
+                this.startDateInput.value = this.formatDate(dates.start);
+                this.endDateInput.value = this.formatDate(dates.end);
 
-                this.startDateInput.value = this.formatDate(firstDayOfMonth);
-                this.endDateInput.value = this.formatDate(lastDayOfMonth);
+                // 加载初始数据
+                this.loadData();
+            }
+
+            loadData() {
+                loadAnalytics({
+                    start_date: this.startDateInput.value,
+                    end_date: this.endDateInput.value,
+                    preset: this.presetSelect.value
+                });
             }
 
             handlePresetChange() {
@@ -278,9 +289,8 @@
                 this.startDateInput.value = this.formatDate(dates.start);
                 this.endDateInput.value = this.formatDate(dates.end);
 
-                if (preset !== 'custom') {
-                    this.handleApply();
-                }
+                // 加载数据
+                this.loadData();
             }
 
             handleDateChange() {
@@ -289,49 +299,30 @@
                 const endDate = this.endDateInput.value;
 
                 if (startDate && endDate && this.validateDateRange(startDate, endDate)) {
-                    loadAnalytics({
-                        start_date: startDate,
-                        end_date: endDate,
-                        preset: 'custom'
-                    });
+                    this.loadData();
                 }
-            }
-
-            handleApply() {
-                const startDate = this.startDateInput.value;
-                const endDate = this.endDateInput.value;
-                const preset = this.presetSelect.value;
-
-                if (!this.validateDateRange(startDate, endDate)) {
-                    alert('请选择有效的日期范围！');
-                    return;
-                }
-
-                // 重新加载统计数据
-                loadAnalytics({
-                    start_date: startDate,
-                    end_date: endDate,
-                    preset: preset
-                });
             }
 
             getPresetDates(preset) {
                 const today = new Date();
                 const result = {
-                    start: new Date(),
-                    end: new Date()
+                    start: new Date(today),
+                    end: new Date(today)
                 };
 
                 switch (preset) {
                     case 'today':
-                        result.start = today;
-                        result.end = today;
                         break;
                     case 'week':
-                        const firstDayOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
-                        result.start = firstDayOfWeek;
-                        result.end = new Date(firstDayOfWeek);
-                        result.end.setDate(result.end.getDate() + 6);
+                        const day = today.getDay() || 7; // 将周日的0转换为7
+                        const mondayOffset = day - 1; // 计算到本周一的偏移天数
+                        const monday = new Date(today);
+                        monday.setDate(today.getDate() - mondayOffset);
+                        result.start = monday;
+                        
+                        const sunday = new Date(monday);
+                        sunday.setDate(monday.getDate() + 6);
+                        result.end = sunday;
                         break;
                     case 'month':
                         result.start = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -393,14 +384,6 @@
 
             formatDate(date) {
                 return date.toISOString().split('T')[0];
-            }
-
-            getCurrentTimeRange() {
-                return {
-                    start_date: this.startDateInput.value,
-                    end_date: this.endDateInput.value,
-                    preset: this.presetSelect.value
-                };
             }
         }
 
@@ -903,7 +886,6 @@
         // 页面加载时检查登录状态
         document.addEventListener('DOMContentLoaded', function() {
             checkLoginStatus();
-            timeRangeManager = new TimeRangeManager(); // 初始化时间范围管理器
         });
 
         // 声明全局变量

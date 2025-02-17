@@ -111,7 +111,11 @@ func GetAnalyticsSummary(c *gin.Context) {
 	}
 
 	// 3. 获取指定时间范围内的日报数
-	if err := db.Model(&model.Report{}).Unscoped().Where("DATE(date) >= DATE(?) AND DATE(date) <= DATE(?) AND deleted_at IS NULL", start, end).Count(&summary.TotalReports).Error; err != nil {
+	if err := db.Model(&model.Report{}).Unscoped().
+		Where("date >= ? AND date < DATE_ADD(?, INTERVAL 1 DAY) AND deleted_at IS NULL",
+			start.Format("2006-01-02"),
+			end.Format("2006-01-02")).
+		Count(&summary.TotalReports).Error; err != nil {
 		fmt.Printf("获取日报数失败: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -125,12 +129,14 @@ func GetAnalyticsSummary(c *gin.Context) {
 	var totalHours float64
 	query := db.Model(&model.Task{}).
 		Joins("JOIN reports ON tasks.report_id = reports.id").
-		Where("DATE(reports.date) >= DATE(?) AND DATE(reports.date) <= DATE(?) AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL", start, end).
+		Where("reports.date >= ? AND reports.date < DATE_ADD(?, INTERVAL 1 DAY) AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL",
+			start.Format("2006-01-02"),
+			end.Format("2006-01-02")).
 		Select("COALESCE(SUM(tasks.hours), 0)")
 
 	// 打印SQL查询语句
 	sql := query.ToSQL(func(tx *gorm.DB) *gorm.DB {
-		return tx.Where("DATE(reports.date) >= DATE(?) AND DATE(reports.date) <= DATE(?)", start, end)
+		return tx.Where("reports.date >= ? AND reports.date < DATE_ADD(?, INTERVAL 1 DAY)", start.Format("2006-01-02"), end.Format("2006-01-02"))
 	})
 	fmt.Printf("总工时查询SQL: %s\n", sql)
 
@@ -151,7 +157,9 @@ func GetAnalyticsSummary(c *gin.Context) {
 		Select("projects.id as project_id, projects.name as project_name, COALESCE(SUM(tasks.hours), 0) as hours").
 		Joins("JOIN reports ON tasks.report_id = reports.id").
 		Joins("JOIN projects ON tasks.project_id = projects.id").
-		Where("DATE(reports.date) >= DATE(?) AND DATE(reports.date) <= DATE(?) AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL", start, end).
+		Where("reports.date >= ? AND reports.date < DATE_ADD(?, INTERVAL 1 DAY) AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL",
+			start.Format("2006-01-02"),
+			end.Format("2006-01-02")).
 		Group("projects.id, projects.name").
 		Having("hours > 0").
 		Order("hours DESC").
@@ -169,7 +177,9 @@ func GetAnalyticsSummary(c *gin.Context) {
 		Select("users.username, COALESCE(SUM(tasks.hours), 0) as hours").
 		Joins("JOIN reports ON tasks.report_id = reports.id").
 		Joins("JOIN users ON reports.user_id = users.id").
-		Where("DATE(reports.date) >= DATE(?) AND DATE(reports.date) <= DATE(?)", start, end).
+		Where("reports.date >= ? AND reports.date < DATE_ADD(?, INTERVAL 1 DAY)",
+			start.Format("2006-01-02"),
+			end.Format("2006-01-02")).
 		Group("users.username").
 		Having("hours > 0").
 		Order("hours DESC").
@@ -195,14 +205,16 @@ func GetAnalyticsSummary(c *gin.Context) {
 			Select("projects.id as project_id, projects.name as project_name, COALESCE(SUM(tasks.hours), 0) as hours").
 			Joins("JOIN reports ON tasks.report_id = reports.id").
 			Joins("JOIN projects ON tasks.project_id = projects.id").
-			Where("DATE(reports.date) = ? AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL", dayStart.Format("2006-01-02")).
+			Where("reports.date >= ? AND reports.date < DATE_ADD(?, INTERVAL 1 DAY) AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL",
+				dayStart.Format("2006-01-02"),
+				dayStart.Format("2006-01-02")).
 			Group("projects.id, projects.name").
 			Having("hours > 0").
 			Order("hours DESC")
 
 		// 打印SQL查询语句
 		sql := query.ToSQL(func(tx *gorm.DB) *gorm.DB {
-			return tx.Where("DATE(reports.date) = ?", dayStart.Format("2006-01-02"))
+			return tx.Where("reports.date >= ? AND reports.date < DATE_ADD(?, INTERVAL 1 DAY)", dayStart.Format("2006-01-02"), dayStart.Format("2006-01-02"))
 		})
 		fmt.Printf("查询日期 %s 的SQL: %s\n", dayStart.Format("2006-01-02"), sql)
 
