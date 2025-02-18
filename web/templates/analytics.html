@@ -105,34 +105,38 @@
     <div class="container mt-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2>统计分析</h2>
-            <button class="btn btn-primary" onclick="refreshData()">
-                <i class="bi bi-arrow-clockwise"></i> 刷新数据
-            </button>
         </div>
         
         <!-- 时间范围选择器 -->
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row align-items-center">
-                    <div class="col-md-4">
-                        <select class="form-select" id="presetRange">
-                            <option value="today">今日</option>
+                    <div class="col-md-3">
+                        <label class="form-label">时间范围</label>
+                        <select class="form-select" id="timeRangePreset" onchange="handlePresetChange()">
+                            <option value="today">今天</option>
                             <option value="week">本周</option>
                             <option value="month" selected>本月</option>
-                            <option value="last_month">上月</option>
-                            <option value="7days">最近7天</option>
-                            <option value="30days">最近30天</option>
-                            <option value="90days">最近90天</option>
                             <option value="quarter">本季度</option>
-                            <option value="year">本年度</option>
-                            <option value="custom">自定义范围</option>
+                            <option value="year">本年</option>
+                            <option value="custom">自定义</option>
                         </select>
                     </div>
-                    <div class="col-md-4">
-                        <input type="date" class="form-control" id="startDate">
+                    <div class="col-md-6">
+                        <label class="form-label">日期范围</label>
+                        <div class="input-group">
+                            <input type="date" class="form-control" id="startDate" onchange="handleDateChange()">
+                            <span class="input-group-text">至</span>
+                            <input type="date" class="form-control" id="endDate" onchange="handleDateChange()">
+                        </div>
                     </div>
-                    <div class="col-md-4">
-                        <input type="date" class="form-control" id="endDate">
+                    <div class="col-md-3 text-end">
+                        <label class="form-label">&nbsp;</label>
+                        <div>
+                            <button class="btn btn-success" onclick="exportData()">
+                                <i class="bi bi-download"></i> 导出数据
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -253,7 +257,7 @@
         // 时间范围选择器类
         class DateRangeSelector {
             constructor() {
-                this.presetSelect = document.getElementById('presetRange');
+                this.presetSelect = document.getElementById('timeRangePreset');
                 this.startDateInput = document.getElementById('startDate');
                 this.endDateInput = document.getElementById('endDate');
 
@@ -330,25 +334,6 @@
                     case 'month':
                         result.start = new Date(today.getFullYear(), today.getMonth(), 1);
                         result.end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                        break;
-                    case 'last_month':
-                        result.start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-                        result.end = new Date(today.getFullYear(), today.getMonth(), 0);
-                        break;
-                    case '7days':
-                        result.end = today;
-                        result.start = new Date(today);
-                        result.start.setDate(result.start.getDate() - 6);
-                        break;
-                    case '30days':
-                        result.end = today;
-                        result.start = new Date(today);
-                        result.start.setDate(result.start.getDate() - 29);
-                        break;
-                    case '90days':
-                        result.end = today;
-                        result.start = new Date(today);
-                        result.start.setDate(result.start.getDate() - 89);
                         break;
                     case 'quarter':
                         const quarter = Math.floor(today.getMonth() / 3);
@@ -893,6 +878,28 @@
 
         // 声明全局变量
         let timeRangeManager;
+
+        // 导出数据
+        function exportData() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('请选择开始和结束日期');
+                return;
+            }
+
+            // 构建下载URL
+            const downloadUrl = `/api/analytics/export?start_date=${startDate}&end_date=${endDate}`;
+            
+            // 创建一个隐藏的a标签来触发下载
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `daily_reports_${startDate}_to_${endDate}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
     </script>
 </body>
 </html> 

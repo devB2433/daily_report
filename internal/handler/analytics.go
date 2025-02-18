@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/csv"
 	"fmt"
 	"net/http"
 	"time"
@@ -313,4 +314,90 @@ func getProjectHoursStats(db *gorm.DB) ([]model.ProjectHoursStat, error) {
 	}
 
 	return stats, nil
+}
+
+// ExportReportsCSV 导出报告数据为CSV格式
+func ExportReportsCSV(c *gin.Context) {
+	// 获取时间范围参数
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+
+	if startDate == "" || endDate == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "请提供开始和结束日期",
+		})
+		return
+	}
+
+	// 解析时间
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "开始日期格式无效",
+		})
+		return
+	}
+
+	end, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "结束日期格式无效",
+		})
+		return
+	}
+
+	db := database.GetDB()
+
+	// 查询报告数据
+	var reports []struct {
+		Username    string    `json:"username"`
+		Date        time.Time `json:"date"`
+		ProjectName string    `json:"project_name"`
+		Hours       float64   `json:"hours"`
+	}
+
+	err = db.Table("tasks").
+		Select("users.username, reports.date, projects.name as project_name, tasks.hours").
+		Joins("JOIN reports ON tasks.report_id = reports.id").
+		Joins("JOIN users ON reports.user_id = users.id").
+		Joins("JOIN projects ON tasks.project_id = projects.id").
+		Where("reports.date >= ? AND reports.date <= ? AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL",
+			start.Format("2006-01-02"), end.Format("2006-01-02")).
+		Order("reports.date ASC, users.username ASC").
+		Scan(&reports).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "获取报告数据失败",
+		})
+		return
+	}
+
+	// 设置响应头
+	fileName := fmt.Sprintf("daily_reports_%s_to_%s.csv", startDate, endDate)
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
+
+	// 写入UTF-8 BOM
+	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+
+	// 写入CSV头
+	writer := csv.NewWriter(c.Writer)
+	writer.Write([]string{"用户名", "日期", "项目名称", "工时"})
+
+	// 写入数据
+	for _, report := range reports {
+		writer.Write([]string{
+			report.Username,
+			report.Date.Format("2006-01-02"),
+			report.ProjectName,
+			fmt.Sprintf("%.1f", report.Hours),
+		})
+	}
+
+	writer.Flush()
 }

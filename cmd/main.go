@@ -117,6 +117,7 @@ func setupRoutes(r *gin.Engine) {
 			authorized.GET("/reports/:id", handler.GetReport)
 			authorized.DELETE("/reports/:id", handler.DeleteReport)
 			authorized.GET("/analytics/summary", handler.GetAnalyticsSummary)
+			authorized.GET("/analytics/export", handler.ExportReportsCSV)
 		}
 	}
 
