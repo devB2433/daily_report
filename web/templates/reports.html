@@ -42,6 +42,9 @@
                     <li class="nav-item">
                         <a class="nav-link active" href="/reports">我的日报</a>
                     </li>
+                    <li class="nav-item d-none" id="allReportsLink">
+                        <a class="nav-link" href="/all-reports">所有日报</a>
+                    </li>
                     <li class="nav-item d-none" id="analyticsLink">
                         <a class="nav-link" href="/analytics">统计分析</a>
                     </li>
@@ -239,11 +242,12 @@
                             `;
                         });
 
-                        // 如果是管理员，显示统计分析链接
+                        // 如果是管理员，显示相关链接
                         if (data.data.role === 'admin') {
                             document.getElementById('analyticsLink').classList.remove('d-none');
                             document.getElementById('projectsLink').classList.remove('d-none');
                             document.getElementById('usersLink').classList.remove('d-none');
+                            document.getElementById('allReportsLink').classList.remove('d-none');
                         }
                     }
                 })
@@ -335,6 +339,7 @@
                             document.getElementById('analyticsLink').classList.remove('d-none');
                             document.getElementById('projectsLink').classList.remove('d-none');
                             document.getElementById('usersLink').classList.remove('d-none');
+                            document.getElementById('allReportsLink').classList.remove('d-none');
                         }
                         
                         // 加载日报列表

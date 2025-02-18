@@ -10,6 +10,7 @@ import (
 type Report struct {
 	gorm.Model
 	UserID      uint      `gorm:"not null" json:"user_id"`
+	User        User      `gorm:"foreignKey:UserID" json:"user"`
 	Date        time.Time `gorm:"not null" json:"date"`
 	Status      string    `gorm:"not null;default:'submitted'" json:"status"` // submitted, draft
 	Tasks       []Task    `gorm:"foreignKey:ReportID" json:"tasks"`

@@ -544,3 +544,52 @@ func calculateProjectHoursPercentage(projectHours []model.ProjectHoursStat) []ma
 
 	return result
 }
+
+// GetAllReports 管理员获取所有用户的日报
+func GetAllReports(c *gin.Context) {
+	// 验证是否为管理员
+	role, exists := c.Get("role")
+	if !exists || role.(string) != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "权限不足",
+		})
+		return
+	}
+
+	// 获取时间范围参数
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+
+	if startDate == "" || endDate == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "请提供开始和结束日期",
+		})
+		return
+	}
+
+	db := database.GetDB()
+	var reports []model.Report
+
+	// 查询指定时间范围内的所有日报
+	query := db.Model(&model.Report{}).
+		Preload("Tasks").
+		Preload("Tasks.Project").
+		Preload("User").
+		Where("date >= ? AND date < DATE_ADD(?, INTERVAL 1 DAY)", startDate, endDate).
+		Order("date DESC, user_id ASC")
+
+	if err := query.Find(&reports).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "获取日报列表失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    reports,
+	})
+}

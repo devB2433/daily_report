@@ -106,6 +106,7 @@ func setupRoutes(r *gin.Engine) {
 				adminOnly.DELETE("/projects/:id", handler.DeleteProject)
 				adminOnly.GET("/users", handler.GetUsers)
 				adminOnly.POST("/users/:id/reset-password", handler.ResetUserPassword)
+				adminOnly.GET("/admin/reports", handler.GetAllReports)
 			}
 
 			authorized.GET("/projects/:id", handler.GetProject)
@@ -124,9 +125,6 @@ func setupRoutes(r *gin.Engine) {
 		username, _ := c.Cookie("username")
 		role, _ := c.Cookie("role")
 
-		// 添加日志
-		// log.Printf("用户信息 - 用户名: %s, 角色: %s", username, role)
-
 		data := gin.H{
 			"title": "工作管理系统",
 			"User": gin.H{
@@ -136,10 +134,28 @@ func setupRoutes(r *gin.Engine) {
 			"isAdmin": role == "admin",
 		}
 
-		// 打印传递给模板的数据
-		// log.Printf("传递给模板的数据: %+v", data)
-
 		c.HTML(http.StatusOK, "index.html", data)
+	})
+
+	// 添加所有日报页面路由
+	r.GET("/all-reports", handler.AuthMiddleware(), func(c *gin.Context) {
+		username, _ := c.Cookie("username")
+		role, _ := c.Cookie("role")
+
+		// 检查是否为管理员
+		if role != "admin" {
+			c.Redirect(http.StatusFound, "/")
+			return
+		}
+
+		c.HTML(http.StatusOK, "all_reports.html", gin.H{
+			"title": "所有日报",
+			"User": gin.H{
+				"Username": username,
+				"Role":     role,
+			},
+			"isAdmin": true,
+		})
 	})
 
 	r.GET("/projects", handler.AuthMiddleware(), func(c *gin.Context) {

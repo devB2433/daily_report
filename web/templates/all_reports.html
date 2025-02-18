@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>所有日报 - {{ .title }}</title>
+    <link rel="icon" type="image/x-icon" href="/static/img/favicon.ico">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- 自定义样式 -->
+    <link href="/static/css/style.css" rel="stylesheet">
+    <style>
+        .navbar {
+            background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%) !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    {{template "navbar" .}}
+
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>所有日报</h2>
+            <div>
+                <div class="input-group">
+                    <input type="date" class="form-control" id="startDate">
+                    <span class="input-group-text">至</span>
+                    <input type="date" class="form-control" id="endDate">
+                    <button class="btn btn-primary" onclick="searchReports()">
+                        <i class="bi bi-search"></i> 查询
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 日报列表 -->
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th style="width: 10%">用户</th>
+                                <th style="width: 10%">日期</th>
+                                <th style="width: 60%">工作内容</th>
+                                <th style="width: 10%">总工时</th>
+                                <th style="width: 10%">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportList">
+                            <!-- 日报列表将通过JavaScript动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日报详情模态框 -->
+    <div class="modal fade" id="reportDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">日报详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <div id="reportContent" class="markdown-body"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="copyReportContent()">
+                        <i class="bi bi-clipboard"></i> 复制内容
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- GitHub Markdown CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css/github-markdown.min.css">
+    <style>
+        .markdown-body {
+            box-sizing: border-box;
+            min-width: 200px;
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 45px;
+        }
+        @media (max-width: 767px) {
+            .markdown-body {
+                padding: 15px;
+            }
+        }
+    </style>
+    <script>
+        // 格式化日期时间
+        function formatDateTime(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+        }
+
+        // 获取本周的起始日期和结束日期
+        function getCurrentWeekDates() {
+            const now = new Date();
+            const currentDay = now.getDay() || 7; // 如果是周日，getDay()返回0，我们将其视为7
+            const monday = new Date(now);
+            monday.setDate(now.getDate() - (currentDay - 1));
+            monday.setHours(0, 0, 0, 0);
+
+            const sunday = new Date(now);
+            sunday.setDate(now.getDate() + (7 - currentDay));
+            sunday.setHours(23, 59, 59, 999);
+
+            return {
+                start: monday.toISOString().split('T')[0],
+                end: sunday.toISOString().split('T')[0]
+            };
+        }
+
+        // 加载日报列表
+        function loadReports(startDate, endDate) {
+            fetch(`/api/admin/reports?start_date=${startDate}&end_date=${endDate}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const reportList = document.getElementById('reportList');
+                        reportList.innerHTML = '';
+                        
+                        data.data.forEach(report => {
+                            const tasksHtml = report.tasks.map(task => `
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between">
+                                        <strong class="text-primary">${task.project ? task.project.name : '-'}</strong>
+                                        <span class="text-muted">${task.hours}小时</span>
+                                    </div>
+                                    <div class="text-muted">${task.content}</div>
+                                </div>
+                            `).join('');
+
+                            let totalHours = report.tasks.reduce((sum, task) => sum + task.hours, 0);
+
+                            reportList.innerHTML += `
+                                <tr>
+                                    <td class="align-middle">${report.user.username}</td>
+                                    <td class="align-middle">
+                                        <div class="fw-bold">${formatDateTime(report.date).split(' ')[0]}</div>
+                                    </td>
+                                    <td>${tasksHtml}</td>
+                                    <td class="align-middle text-center">
+                                        <span class="badge bg-primary">${totalHours}小时</span>
+                                    </td>
+                                    <td class="align-middle">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="viewReport(${report.ID})">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('加载日报列表失败:', error);
+                });
+        }
+
+        // 查看日报详情
+        function viewReport(id) {
+            fetch(`/api/reports/${id}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const report = data.data;
+                        
+                        // 生成Markdown内容
+                        let mdContent = `# 工作日报 (${report.date})\n\n`;
+                        mdContent += `> 提交人：${report.user.username}\n`;
+                        mdContent += `> 提交时间：${report.submitted_at}\n`;
+                        
+                        let totalHours = 0;
+                        report.tasks.forEach(task => {
+                            totalHours += task.hours;
+                        });
+                        mdContent += `> 总工时：${totalHours}小时\n\n`;
+                        
+                        mdContent += `## 工作内容\n\n`;
+                        report.tasks.forEach(task => {
+                            mdContent += `### ${task.project.name}（${task.hours}小时）\n`;
+                            mdContent += `- ${task.content}\n\n`;
+                        });
+
+                        // 保存原始Markdown内容供复制使用
+                        window.currentReportMd = mdContent;
+                        
+                        // 渲染Markdown内容
+                        const htmlContent = marked.parse(mdContent);
+                        document.getElementById('reportContent').innerHTML = htmlContent;
+                        
+                        // 显示模态框
+                        const modal = new bootstrap.Modal(document.getElementById('reportDetailModal'));
+                        modal.show();
+                    } else {
+                        alert(data.message || '获取日报详情失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('获取日报详情失败:', error);
+                    alert('获取日报详情失败：' + error.message);
+                });
+        }
+
+        // 复制日报内容
+        function copyReportContent() {
+            if (window.currentReportMd) {
+                navigator.clipboard.writeText(window.currentReportMd)
+                    .then(() => {
+                        alert('日报内容已复制到剪贴板');
+                    })
+                    .catch(err => {
+                        console.error('复制失败:', err);
+                        alert('复制失败，请手动复制');
+                    });
+            }
+        }
+
+        // 搜索日报
+        function searchReports() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('请选择开始和结束日期');
+                return;
+            }
+
+            loadReports(startDate, endDate);
+        }
+
+        // 处理退出登录
+        function handleLogout() {
+            fetch('/api/logout', {
+                method: 'POST',
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '/login';
+                } else {
+                    throw new Error(data.message || '退出登录失败');
+                }
+            })
+            .catch(error => {
+                console.error('退出登录失败:', error);
+                alert('退出登录失败: ' + error.message);
+            });
+        }
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 设置默认日期范围为本周
+            const weekDates = getCurrentWeekDates();
+            document.getElementById('startDate').value = weekDates.start;
+            document.getElementById('endDate').value = weekDates.end;
+            
+            // 加载本周的日报
+            loadReports(weekDates.start, weekDates.end);
+        });
+    </script>
+</body>
+</html> 

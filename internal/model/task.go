@@ -8,6 +8,7 @@ import (
 type Task struct {
 	gorm.Model
 	ReportID  uint     `gorm:"not null" json:"report_id"`
+	Report    *Report  `json:"report,omitempty" gorm:"foreignKey:ReportID"`
 	ProjectID uint     `gorm:"not null" json:"project_id"`
 	Project   *Project `json:"project,omitempty" gorm:"foreignKey:ProjectID"`
 	Hours     float64  `gorm:"not null" json:"hours"`
