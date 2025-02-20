@@ -16,7 +16,7 @@ services:
       - DB_CHARSET=utf8mb4
       - DB_LOC=Local
     volumes:
-      - .:/app
+      - /c/go_programe/src/daily_report:/app
       - go-mod-cache:/go/pkg/mod
     depends_on:
       mysql:

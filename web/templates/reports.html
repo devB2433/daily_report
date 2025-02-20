@@ -71,9 +71,13 @@
     <div class="container mt-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2>我的日报</h2>
-            <a href="/reports/new" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> 写日报
-            </a>
+            <div class="d-flex gap-2">
+                <div class="input-group">
+                    <select class="form-select" id="monthSelect" style="max-width: 200px;" onchange="handleMonthChange()">
+                        <!-- 月份选项将通过JavaScript动态加载 -->
+                    </select>
+                </div>
+            </div>
         </div>
 
         <!-- 日报列表 -->
@@ -148,67 +152,112 @@
             return date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
         }
 
-        // 删除日报
-        function deleteReport(id) {
-            if (!confirm('确定要删除这篇日报吗？此操作不可恢复。')) {
-                return;
-            }
-
-            fetch(`/api/reports/${id}`, {
-                method: 'DELETE'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('日报删除成功');
-                    loadReports(); // 重新加载日报列表
-                } else {
-                    alert(data.message || '删除失败');
-                }
-            })
-            .catch(error => {
-                console.error('删除日报出错:', error);
-                alert('删除失败：' + error.message);
-            });
+        // 获取月份的起始日期和结束日期
+        function getMonthDates(year, month) {
+            // 确保月份和年份是数字
+            year = parseInt(year);
+            month = parseInt(month);
+            
+            // 创建日期对象时月份从0开始，所以要减1
+            const start = new Date(year, month - 1, 1);
+            // 获取下个月的第0天，即本月的最后一天
+            const end = new Date(year, month, 0);
+            
+            // 格式化日期为 YYYY-MM-DD
+            const formatDate = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+            
+            return {
+                start: formatDate(start),
+                end: formatDate(end)
+            };
         }
 
-        // 加载日报列表
-        function loadReports() {
-            fetch('/api/reports')
-                .then(response => response.json())
+        // 初始化月份选择下拉框
+        function initMonthSelect() {
+            const monthSelect = document.getElementById('monthSelect');
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth() + 1;
+
+            // 生成最近12个月的选项
+            for (let i = 0; i < 12; i++) {
+                let month = currentMonth - i;
+                let year = currentYear;
+                if (month <= 0) {
+                    month += 12;
+                    year -= 1;
+                }
+                const option = document.createElement('option');
+                option.value = `${year}-${month.toString().padStart(2, '0')}`;
+                option.text = `${year}年${month}月`;
+                if (i === 0) {
+                    option.selected = true;
+                }
+                monthSelect.appendChild(option);
+            }
+
+            // 加载当前月份的报告
+            handleMonthChange();
+        }
+
+        // 处理月份选择变化
+        function handleMonthChange() {
+            const monthSelect = document.getElementById('monthSelect');
+            const [year, month] = monthSelect.value.split('-');
+            const dates = getMonthDates(year, month);
+            console.log('Selected month:', monthSelect.value);
+            console.log('Date range:', dates);
+            loadReportsByDateRange(dates.start, dates.end);
+        }
+
+        // 按日期范围加载日报
+        function loadReportsByDateRange(startDate, endDate) {
+            console.log('Loading reports for date range:', startDate, 'to', endDate);
+            
+            const params = new URLSearchParams({
+                start_date: startDate,
+                end_date: endDate
+            });
+            
+            fetch(`/api/reports?${params.toString()}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    // console.log('日报数据:', data);
+                    console.log('API response:', data);
+                    
                     if (data.success) {
                         const reportList = document.getElementById('reportList');
                         reportList.innerHTML = '';
                         
-                        // 按日期对日报进行分组
-                        const reportsByDate = {};
-                        data.data.forEach(report => {
-                            const date = report.date; // 使用完整的原始日期
-                            if (!reportsByDate[date]) {
-                                reportsByDate[date] = {
-                                    id: report.ID,
-                                    tasks: [],
-                                    totalHours: 0,
-                                    submitted_at: report.submitted_at
-                                };
-                            }
-                            // 清空之前的任务和工时，避免重复累加
-                            reportsByDate[date].tasks = [];
-                            reportsByDate[date].totalHours = 0;
-                            // 添加新的任务和工时
-                            reportsByDate[date].tasks.push(...report.tasks);
-                            report.tasks.forEach(task => {
-                                reportsByDate[date].totalHours += task.hours;
-                            });
+                        if (!data.data || data.data.length === 0) {
+                            reportList.innerHTML = '<tr><td colspan="4" class="text-center">该月份暂无日报记录</td></tr>';
+                            return;
+                        }
+
+                        // 过滤指定日期范围内的报告
+                        const filteredReports = data.data.filter(report => {
+                            const reportDate = report.date;
+                            return reportDate >= startDate && reportDate <= endDate;
                         });
 
-                        // 按日期倒序排序
-                        const sortedDates = Object.keys(reportsByDate).sort().reverse();
+                        if (filteredReports.length === 0) {
+                            reportList.innerHTML = '<tr><td colspan="4" class="text-center">该月份暂无日报记录</td></tr>';
+                            return;
+                        }
 
-                        sortedDates.forEach(date => {
-                            const report = reportsByDate[date];
+                        // 按日期排序（降序）
+                        filteredReports.sort((a, b) => new Date(b.date) - new Date(a.date));
+                        
+                        filteredReports.forEach(report => {
                             const tasksHtml = report.tasks.map(task => `
                                 <div class="mb-2">
                                     <div class="d-flex justify-content-between">
@@ -219,21 +268,21 @@
                                 </div>
                             `).join('');
 
+                            const totalHours = report.tasks.reduce((sum, task) => sum + task.hours, 0);
+
                             reportList.innerHTML += `
                                 <tr>
                                     <td class="align-middle">
-                                        <div class="fw-bold">${formatDateTime(date).split(' ')[0]}</div>
+                                        <div class="fw-bold">${formatDateTime(report.date).split(' ')[0]}</div>
                                     </td>
                                     <td>${tasksHtml}</td>
-                                    <td class="align-middle text-center">
-                                        <span class="badge bg-primary">${report.totalHours}小时</span>
-                                    </td>
+                                    <td class="align-middle text-center">${totalHours}</td>
                                     <td class="align-middle">
                                         <div class="btn-group">
-                                            <button class="btn btn-sm btn-outline-primary" onclick="viewReport(${report.id})">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="viewReport('${report.date}')">
                                                 <i class="bi bi-eye"></i>
                                             </button>
-                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteReport(${report.id})">
+                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteReport('${report.date}')">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -241,18 +290,47 @@
                                 </tr>
                             `;
                         });
-
-                        // 如果是管理员，显示相关链接
-                        if (data.data.role === 'admin') {
-                            document.getElementById('analyticsLink').classList.remove('d-none');
-                            document.getElementById('projectsLink').classList.remove('d-none');
-                            document.getElementById('usersLink').classList.remove('d-none');
-                            document.getElementById('allReportsLink').classList.remove('d-none');
-                        }
+                    } else {
+                        throw new Error(data.message || '加载日报失败');
                     }
                 })
                 .catch(error => {
-                    console.error('加载日报列表失败:', error);
+                    console.error('Error loading reports:', error);
+                    alert('加载日报失败，请稍后重试');
+                });
+        }
+
+        // 删除日报
+        function deleteReport(date) {
+            if (!confirm('确定要删除这篇日报吗？此操作不可恢复。')) {
+                return;
+            }
+
+            // 获取该日期的报告ID
+            fetch(`/api/reports?start_date=${date}&end_date=${date}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.data.length > 0) {
+                        const reportId = data.data[0].ID;
+                        return fetch(`/api/reports/${reportId}`, {
+                            method: 'DELETE'
+                        });
+                    } else {
+                        throw new Error('未找到该日期的日报');
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('日报删除成功');
+                        handleMonthChange(); // 重新加载当前月份的日报列表
+                    } else {
+                        alert(data.message || '删除失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('删除日报出错:', error);
+                    alert('删除失败：' + error.message);
                 });
         }
 
@@ -266,8 +344,18 @@
         }
 
         // 查看日报详情
-        function viewReport(id) {
-            fetch(`/api/reports/${id}`)
+        function viewReport(date) {
+            // 先获取该日期的报告ID
+            fetch(`/api/reports?start_date=${date}&end_date=${date}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.data.length > 0) {
+                        const reportId = data.data[0].ID;
+                        return fetch(`/api/reports/${reportId}`);
+                    } else {
+                        throw new Error('未找到该日期的日报');
+                    }
+                })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -285,7 +373,7 @@
                         
                         mdContent += `## 工作内容\n\n`;
                         report.tasks.forEach(task => {
-                            mdContent += `### ${task.project.name}（${task.hours}小时）\n`;
+                            mdContent += `### ${task.project ? task.project.name : '未分类'}（${task.hours}小时）\n`;
                             mdContent += `- ${task.content}\n\n`;
                         });
 
@@ -341,9 +429,6 @@
                             document.getElementById('usersLink').classList.remove('d-none');
                             document.getElementById('allReportsLink').classList.remove('d-none');
                         }
-                        
-                        // 加载日报列表
-                        loadReports();
                     } else {
                         window.location.href = '/login';
                     }
@@ -356,13 +441,32 @@
 
         // 处理退出登录
         function handleLogout() {
-            document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-            window.location.href = '/login';
+            fetch('/api/logout', {
+                method: 'POST',
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 清除 cookie
+                    document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                    window.location.href = '/login';
+                } else {
+                    throw new Error(data.message || '退出登录失败');
+                }
+            })
+            .catch(error => {
+                console.error('退出登录失败:', error);
+                alert('退出登录失败: ' + error.message);
+            });
         }
 
-        // 页面加载时检查登录状态
+        // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
+            // 检查用户登录状态
             checkLoginStatus();
+            // 初始化月份选择
+            initMonthSelect();
         });
     </script>
 </body>
