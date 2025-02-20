@@ -13,7 +13,6 @@ services:
       - DB_NAME=daily_report
       - DB_CHARSET=utf8mb4
       - DB_LOC=Local
-      - TZ=Asia/Shanghai
     depends_on:
       mysql:
         condition: service_healthy
@@ -27,7 +26,7 @@ services:
           cpus: '0.25'
           memory: 256M
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/user/info"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -47,7 +46,6 @@ services:
       - MYSQL_DATABASE=daily_report
       - MYSQL_USER=daily_report
       - MYSQL_PASSWORD=daily_report_password
-      - TZ=Asia/Shanghai
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
