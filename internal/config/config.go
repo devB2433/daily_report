@@ -74,7 +74,7 @@ func GetConfig() *Config {
 
 // GetDSN 返回数据库连接字符串
 func (c *Config) GetDSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=true&loc=%s",
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=true&loc=%s&collation=utf8mb4_unicode_ci",
 		c.Database.Username,
 		c.Database.Password,
 		c.Database.Host,

@@ -175,13 +175,13 @@ func GetAnalyticsSummary(c *gin.Context) {
 
 	// 6. 获取用户工时统计
 	if err := db.Table("tasks").
-		Select("users.username, COALESCE(SUM(tasks.hours), 0) as hours").
+		Select("users.username, users.chinese_name, COALESCE(SUM(tasks.hours), 0) as hours").
 		Joins("JOIN reports ON tasks.report_id = reports.id").
 		Joins("JOIN users ON reports.user_id = users.id").
 		Where("reports.date >= ? AND reports.date < DATE_ADD(?, INTERVAL 1 DAY)",
 			start.Format("2006-01-02"),
 			end.Format("2006-01-02")).
-		Group("users.username").
+		Group("users.username, users.chinese_name").
 		Having("hours > 0").
 		Order("hours DESC").
 		Scan(&summary.UserHours).Error; err != nil {
@@ -354,13 +354,14 @@ func ExportReportsCSV(c *gin.Context) {
 	// 查询报告数据
 	var reports []struct {
 		Username    string    `json:"username"`
+		ChineseName string    `json:"chinese_name"`
 		Date        time.Time `json:"date"`
 		ProjectName string    `json:"project_name"`
 		Hours       float64   `json:"hours"`
 	}
 
 	err = db.Table("tasks").
-		Select("users.username, reports.date, projects.name as project_name, tasks.hours").
+		Select("users.username, users.chinese_name, reports.date, projects.name as project_name, tasks.hours").
 		Joins("JOIN reports ON tasks.report_id = reports.id").
 		Joins("JOIN users ON reports.user_id = users.id").
 		Joins("JOIN projects ON tasks.project_id = projects.id").
@@ -387,12 +388,13 @@ func ExportReportsCSV(c *gin.Context) {
 
 	// 写入CSV头
 	writer := csv.NewWriter(c.Writer)
-	writer.Write([]string{"用户名", "日期", "项目名称", "工时"})
+	writer.Write([]string{"用户名", "姓名", "日期", "项目名称", "工时"})
 
 	// 写入数据
 	for _, report := range reports {
 		writer.Write([]string{
 			report.Username,
+			report.ChineseName,
 			report.Date.Format("2006-01-02"),
 			report.ProjectName,
 			fmt.Sprintf("%.1f", report.Hours),

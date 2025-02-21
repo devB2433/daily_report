@@ -59,9 +59,10 @@ func ParseToken(tokenString string) (jwt.MapClaims, error) {
 }
 
 type RegisterRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Email       string `json:"email" binding:"required,email"`
+	Username    string `json:"username" binding:"required"`
+	ChineseName string `json:"chineseName" binding:"required"`
+	Password    string `json:"password" binding:"required"`
 }
 
 type LoginRequest struct {
@@ -95,6 +96,15 @@ func RegisterHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "用户名只能包含英文字母",
+		})
+		return
+	}
+
+	// 验证中文姓名（2-10个中文字符）
+	if !regexp.MustCompile(`^[\p{Han}]{2,10}$`).MatchString(req.ChineseName) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "姓名必须是2-10个中文字符",
 		})
 		return
 	}
@@ -147,9 +157,10 @@ func RegisterHandler(c *gin.Context) {
 
 	// 创建新用户
 	user := model.User{
-		Email:    req.Email,
-		Username: req.Username,
-		Role:     "user", // 默认角色为普通用户
+		Email:       req.Email,
+		Username:    req.Username,
+		ChineseName: req.ChineseName,
+		Role:        "user", // 默认角色为普通用户
 	}
 
 	// 如果用户名是admin或root，设置角色为管理员
@@ -343,10 +354,11 @@ func GetUserInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"user_id":  user.ID,
-			"username": user.Username,
-			"email":    user.Email,
-			"role":     user.Role,
+			"user_id":      user.ID,
+			"username":     user.Username,
+			"chinese_name": user.ChineseName,
+			"email":        user.Email,
+			"role":         user.Role,
 		},
 	})
 }
@@ -371,7 +383,7 @@ func GetUsers(c *gin.Context) {
 	var users []model.User
 
 	// 查询所有用户，按用户名排序
-	if err := db.Select("id, username, email, role, last_login_at").Order("username ASC").Find(&users).Error; err != nil {
+	if err := db.Select("id, username, chinese_name, email, role, last_login_at").Order("username ASC").Find(&users).Error; err != nil {
 		log.Printf("Failed to get users: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,

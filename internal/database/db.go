@@ -25,7 +25,7 @@ func GetDB() *gorm.DB {
 		log.Println("正在初始化数据库连接...")
 
 		// 首先连接MySQL服务器（不指定数据库）
-		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/?charset=%s&parseTime=true&loc=%s",
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/?charset=%s&parseTime=true&loc=%s&collation=utf8mb4_unicode_ci",
 			cfg.Database.Username,
 			cfg.Database.Password,
 			cfg.Database.Host,
@@ -64,7 +64,15 @@ func GetDB() *gorm.DB {
 
 		// 连接到目标数据库
 		log.Printf("正在连接到数据库 %s...", cfg.Database.Name)
-		database, err := gorm.Open(mysql.Open(cfg.GetDSN()), &gorm.Config{})
+		database, err := gorm.Open(mysql.Open(fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=true&loc=%s&collation=utf8mb4_unicode_ci",
+			cfg.Database.Username,
+			cfg.Database.Password,
+			cfg.Database.Host,
+			cfg.Database.Port,
+			cfg.Database.Name,
+			cfg.Database.Charset,
+			cfg.Database.Loc,
+		)), &gorm.Config{})
 		if err != nil {
 			log.Fatal("连接数据库失败:", err)
 		}

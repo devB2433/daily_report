@@ -9,8 +9,9 @@ type ProjectHoursStat struct {
 
 // UserHoursStat 用户工时统计
 type UserHoursStat struct {
-	Username string  `json:"username"`
-	Hours    float64 `json:"hours"`
+	Username    string  `json:"username"`
+	ChineseName string  `json:"chinese_name"`
+	Hours       float64 `json:"hours"`
 }
 
 // SubmissionRateStat 提交率统计

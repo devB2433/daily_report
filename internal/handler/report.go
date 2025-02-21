@@ -229,28 +229,25 @@ func CreateReport(c *gin.Context) {
 // GetReports 获取日报列表
 func GetReports(c *gin.Context) {
 	userID, _ := c.Get("user_id")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
 	db := database.GetDB()
 
+	query := db.Preload("Tasks").Preload("Tasks.Project").Preload("User").
+		Where("user_id = ?", userID)
+
+	// 如果提供了日期范围，添加日期过滤条件
+	if startDate != "" && endDate != "" {
+		query = query.Where("DATE(date) >= DATE(?) AND DATE(date) <= DATE(?)", startDate, endDate)
+	}
+
 	var reports []model.Report
-	if err := db.Preload("Tasks").
-		Where("user_id = ?", userID).
-		Order("date DESC").
-		Find(&reports).Error; err != nil {
+	if err := query.Order("date DESC").Find(&reports).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "获取日报列表失败",
 		})
 		return
-	}
-
-	// 手动加载每个任务的项目信息
-	for i := range reports {
-		for j := range reports[i].Tasks {
-			var project model.Project
-			if err := db.First(&project, reports[i].Tasks[j].ProjectID).Error; err == nil {
-				reports[i].Tasks[j].Project = &project
-			}
-		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -263,18 +260,31 @@ func GetReports(c *gin.Context) {
 func GetReport(c *gin.Context) {
 	id := c.Param("id")
 	userID, _ := c.Get("user_id")
+	role, _ := c.Get("role")
+	fmt.Printf("Getting report: id=%s, userID=%v, role=%s\n", id, userID, role)
+
 	db := database.GetDB()
 
 	var report model.Report
-	if err := db.Preload("Tasks").Preload("Tasks.Project").
-		Where("id = ? AND user_id = ?", id, userID).
-		First(&report).Error; err != nil {
+	query := db.Preload("Tasks").Preload("Tasks.Project").Preload("User")
+
+	// 如果不是管理员，只能查看自己的日报
+	if role != "admin" {
+		query = query.Where("user_id = ?", userID)
+		fmt.Printf("Adding user_id condition for non-admin user\n")
+	}
+
+	if err := query.First(&report, id).Error; err != nil {
+		fmt.Printf("Error finding report: %v\n", err)
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
 			"message": "日报不存在",
 		})
 		return
 	}
+
+	fmt.Printf("Found report: %+v\n", report)
+	fmt.Printf("Tasks: %+v\n", report.Tasks)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
