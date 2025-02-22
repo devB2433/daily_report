@@ -436,7 +436,7 @@
                 .then(data => {
                     if (data.success) {
                         // 显示用户信息
-                        document.getElementById('username').textContent = data.data.chinese_name;
+                        document.getElementById('username').textContent = data.data.username;
                         document.getElementById('userDropdown').classList.remove('d-none');
                         document.getElementById('loginLink').classList.add('d-none');
                         

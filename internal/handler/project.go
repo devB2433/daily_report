@@ -195,6 +195,17 @@ func DeleteProject(c *gin.Context) {
 	id := c.Param("id")
 	db := database.GetDB()
 
+	// 检查是否存在与该项目相关联的日报
+	var count int64
+	db.Model(&model.Task{}).Where("project_id = ?", id).Count(&count)
+	if count > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无法删除项目，因为存在与该项目相关联的日报",
+		})
+		return
+	}
+
 	if err := db.Delete(&model.Project{}, id).Error; err != nil {
 		log.Printf("Failed to delete project: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
