@@ -63,6 +63,7 @@ type RegisterRequest struct {
 	Username    string `json:"username" binding:"required"`
 	ChineseName string `json:"chineseName" binding:"required"`
 	Password    string `json:"password" binding:"required"`
+	Department  string `json:"department" binding:"required"`
 }
 
 type LoginRequest struct {
@@ -105,6 +106,15 @@ func RegisterHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "姓名必须是2-10个中文字符",
+		})
+		return
+	}
+
+	// 验证部门
+	if req.Department != "交付" && req.Department != "产品研发测试" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "部门必须是'交付'或'产品研发测试'",
 		})
 		return
 	}
@@ -160,6 +170,7 @@ func RegisterHandler(c *gin.Context) {
 		Email:       req.Email,
 		Username:    req.Username,
 		ChineseName: req.ChineseName,
+		Department:  req.Department,
 		Role:        "user", // 默认角色为普通用户
 	}
 
@@ -383,7 +394,7 @@ func GetUsers(c *gin.Context) {
 	var users []model.User
 
 	// 查询所有用户，按用户名排序
-	if err := db.Select("id, username, chinese_name, email, role, last_login_at").Order("username ASC").Find(&users).Error; err != nil {
+	if err := db.Select("id, username, chinese_name, email, role, department, last_login_at").Order("username ASC").Find(&users).Error; err != nil {
 		log.Printf("Failed to get users: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,

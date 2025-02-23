@@ -3,7 +3,6 @@ package handler
 import (
 	"net/http"
 	"regexp"
-	"time"
 
 	"daily-report/internal/database"
 	"daily-report/internal/model"
@@ -12,16 +11,7 @@ import (
 )
 
 type UserResponse struct {
-	ID          uint      `json:"id"`
-	Username    string    `json:"username"`
-	ChineseName string    `json:"chinese_name"`
-	Email       string    `json:"email"`
-	Role        string    `json:"role"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-type UpdateUserRequest struct {
+	ID          uint   `json:"id"`
 	Username    string `json:"username"`
 	ChineseName string `json:"chinese_name"`
 	Email       string `json:"email"`
@@ -35,23 +25,27 @@ func toUserResponse(user *model.User) UserResponse {
 		ChineseName: user.ChineseName,
 		Email:       user.Email,
 		Role:        user.Role,
-		CreatedAt:   user.CreatedAt,
-		UpdatedAt:   user.UpdatedAt,
 	}
 }
 
-// UpdateUser 更新用户信息
-func UpdateUser(c *gin.Context) {
-	var req UpdateUserRequest
+// UpdateUserInfo 更新用户信息（仅管理员可用）
+func UpdateUserInfo(c *gin.Context) {
+	userID := c.Param("id")
+
+	var req struct {
+		ChineseName string `json:"chinese_name" binding:"required"`
+		Department  string `json:"department" binding:"required"`
+	}
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "无效的请求数据",
+			"message": "请求数据无效",
 		})
 		return
 	}
 
-	// 验证中文姓名
+	// 验证中文姓名（2-10个中文字符）
 	if !regexp.MustCompile(`^[\p{Han}]{2,10}$`).MatchString(req.ChineseName) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -60,17 +54,15 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// 获取用户ID
-	userID := c.Param("id")
-	if userID == "" {
+	// 验证部门
+	if req.Department != "交付" && req.Department != "产品研发测试" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "用户ID不能为空",
+			"message": "部门必须是'交付'或'产品研发测试'",
 		})
 		return
 	}
 
-	// 从数据库获取用户
 	db := database.GetDB()
 	var user model.User
 	if err := db.First(&user, userID).Error; err != nil {
@@ -82,12 +74,9 @@ func UpdateUser(c *gin.Context) {
 	}
 
 	// 更新用户信息
-	user.Username = req.Username
 	user.ChineseName = req.ChineseName
-	user.Email = req.Email
-	user.Role = req.Role
+	user.Department = req.Department
 
-	// 保存更新
 	if err := db.Save(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -99,6 +88,6 @@ func UpdateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "用户信息更新成功",
-		"data":    toUserResponse(&user),
+		"data":    user,
 	})
 }

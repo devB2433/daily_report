@@ -106,6 +106,7 @@ func setupRoutes(r *gin.Engine) {
 				adminOnly.DELETE("/projects/:id", handler.DeleteProject)
 				adminOnly.GET("/users", handler.GetUsers)
 				adminOnly.POST("/users/:id/reset-password", handler.ResetUserPassword)
+				adminOnly.PUT("/users/:id", handler.UpdateUserInfo)
 				adminOnly.GET("/admin/reports", handler.GetAllReports)
 			}
 

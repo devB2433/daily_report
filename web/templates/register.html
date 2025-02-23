@@ -66,6 +66,14 @@
                                 <div class="form-text">请输入真实中文姓名，长度2-10个字</div>
                             </div>
                             <div class="mb-3">
+                                <label for="department" class="form-label">部门</label>
+                                <select class="form-select" id="department" name="department" required>
+                                    <option value="">请选择部门</option>
+                                    <option value="交付">交付</option>
+                                    <option value="产品研发测试">产品研发测试</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
                                 <label for="password" class="form-label">密码</label>
                                 <div class="password-container">
                                     <input type="password" class="form-control" id="password" name="password" required
@@ -109,6 +117,7 @@
                     <p><strong>邮箱：</strong><span id="confirmEmail"></span></p>
                     <p><strong>用户名：</strong><span id="confirmUsername"></span></p>
                     <p><strong>姓名：</strong><span id="confirmChineseName"></span></p>
+                    <p><strong>部门：</strong><span id="confirmDepartment"></span></p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">修改</button>
@@ -208,6 +217,7 @@
             document.getElementById('confirmEmail').textContent = email;
             document.getElementById('confirmUsername').textContent = username;
             document.getElementById('confirmChineseName').textContent = chineseName;
+            document.getElementById('confirmDepartment').textContent = document.getElementById('department').value;
             modal.show();
             
             return false;
@@ -221,6 +231,7 @@
                     email: formData.get('email'),
                     username: formData.get('username'),
                     chineseName: formData.get('chineseName'),
+                    department: formData.get('department'),
                     password: formData.get('password')
                 };
                 

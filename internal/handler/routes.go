@@ -71,6 +71,7 @@ func RegisterRoutes(router *gin.Engine) {
 			{
 				adminOnly.GET("/users", GetUsers)
 				adminOnly.POST("/users/:id/reset-password", ResetUserPassword)
+				adminOnly.PUT("/users/:id", UpdateUserInfo)
 			}
 		}
 	}

@@ -60,12 +60,12 @@
     </div>
 
     <!-- 日报详情模态框 -->
-    <div class="modal fade" id="reportDetailModal" tabindex="-1">
+    <div class="modal fade" id="reportDetailModal" tabindex="-1" aria-labelledby="reportDetailModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">日报详情</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title" id="reportDetailModalLabel">日报详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -73,10 +73,10 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" onclick="copyReportContent()">
-                        <i class="bi bi-clipboard"></i> 复制内容
+                    <button type="button" class="btn btn-primary" onclick="copyReportContent()" id="copyButton">
+                        <i class="bi bi-clipboard" aria-hidden="true"></i> 复制内容
                     </button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="closeButton">关闭</button>
                 </div>
             </div>
         </div>
@@ -211,6 +211,17 @@
                         // 显示模态框
                         const modal = new bootstrap.Modal(document.getElementById('reportDetailModal'));
                         modal.show();
+
+                        // 设置焦点管理
+                        const modalElement = document.getElementById('reportDetailModal');
+                        modalElement.addEventListener('shown.bs.modal', function () {
+                            document.getElementById('closeButton').focus();
+                        });
+
+                        modalElement.addEventListener('hidden.bs.modal', function () {
+                            // 找到触发模态框的按钮并重新聚焦
+                            document.querySelector(`button[onclick="viewReport(${id})"]`).focus();
+                        });
                     } else {
                         alert(data.message || '获取日报详情失败');
                     }

@@ -403,6 +403,7 @@ func ExportReportsCSV(c *gin.Context) {
 	var detailReports []struct {
 		Username    string    `json:"username"`
 		ChineseName string    `json:"chinese_name"`
+		Department  string    `json:"department"`
 		Date        time.Time `json:"date"`
 		ProjectName string    `json:"project_name"`
 		Content     string    `json:"content"`
@@ -410,7 +411,7 @@ func ExportReportsCSV(c *gin.Context) {
 	}
 
 	err = db.Table("tasks").
-		Select("users.username, users.chinese_name, reports.date, projects.name as project_name, tasks.content, tasks.hours").
+		Select("users.username, users.chinese_name, users.department, reports.date, projects.name as project_name, tasks.content, tasks.hours").
 		Joins("JOIN reports ON tasks.report_id = reports.id").
 		Joins("JOIN users ON reports.user_id = users.id").
 		Joins("JOIN projects ON tasks.project_id = projects.id").
@@ -439,13 +440,14 @@ func ExportReportsCSV(c *gin.Context) {
 	writer := csv.NewWriter(c.Writer)
 
 	// 写入日报详细数据表头
-	writer.Write([]string{"用户名", "姓名", "日期", "项目名称", "工作内容", "工时"})
+	writer.Write([]string{"用户名", "姓名", "部门", "日期", "项目名称", "工作内容", "工时"})
 
 	// 写入日报详细数据
 	for _, report := range detailReports {
 		writer.Write([]string{
 			report.Username,
 			report.ChineseName,
+			report.Department,
 			report.Date.Format("2006-01-02"),
 			report.ProjectName,
 			report.Content,

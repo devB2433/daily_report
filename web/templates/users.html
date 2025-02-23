@@ -17,39 +17,62 @@
             background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%) !important;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
+        .table th {
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .btn-group .btn {
+            margin: 0 2px;
+        }
+        .card {
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            border-radius: 0.5rem;
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            padding: 1rem 1.25rem;
+        }
     </style>
 </head>
 <body>
     {{template "navbar" .}}
 
     <div class="container mt-4">
-        <h2>用户管理</h2>
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead>
-                    <tr>
-                        <th>用户名</th>
-                        <th>中文姓名</th>
-                        <th>邮箱</th>
-                        <th>角色</th>
-                        <th>最后登录</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody id="userList">
-                    <!-- 用户列表将通过 JavaScript 动态填充 -->
-                </tbody>
-            </table>
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">用户管理</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>用户名</th>
+                                <th>中文姓名</th>
+                                <th>邮箱</th>
+                                <th>部门</th>
+                                <th>角色</th>
+                                <th>最后登录</th>
+                                <th class="text-end">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userList">
+                            <!-- 用户列表将通过 JavaScript 动态填充 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- 重置密码模态框 -->
-    <div class="modal fade" id="resetPasswordModal" tabindex="-1">
+    <div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">重置密码</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title" id="resetPasswordModalLabel">重置密码</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
                 </div>
                 <div class="modal-body">
                     <input type="hidden" id="resetUserId">
@@ -67,6 +90,48 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                     <button type="button" class="btn btn-primary" onclick="resetPassword()">确认重置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑用户信息模态框 -->
+    <div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editUserModalLabel">编辑用户信息</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editUserId">
+                    <div class="mb-3">
+                        <label for="editUsername" class="form-label">用户名</label>
+                        <input type="text" class="form-control" id="editUsername" disabled>
+                        <div class="form-text">用户名不可修改</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editChineseName" class="form-label">中文姓名</label>
+                        <input type="text" class="form-control" id="editChineseName" required>
+                        <div class="form-text">请输入2-10个中文字符</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editEmail" class="form-label">邮箱</label>
+                        <input type="email" class="form-control" id="editEmail" disabled>
+                        <div class="form-text">邮箱不可修改</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editDepartment" class="form-label">部门</label>
+                        <select class="form-select" id="editDepartment" required>
+                            <option value="">请选择部门</option>
+                            <option value="交付">交付</option>
+                            <option value="产品研发测试">产品研发测试</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="updateUserInfo()">保存更改</button>
                 </div>
             </div>
         </div>
@@ -102,12 +167,18 @@
                     <td>${escapeHtml(user.username)}</td>
                     <td>${escapeHtml(user.chinese_name)}</td>
                     <td>${escapeHtml(user.email)}</td>
-                    <td>${escapeHtml(user.role)}</td>
+                    <td>${escapeHtml(user.department)}</td>
+                    <td><span class="badge bg-${user.role === 'admin' ? 'danger' : 'primary'}">${escapeHtml(user.role)}</span></td>
                     <td>${user.last_login_at ? new Date(user.last_login_at).toLocaleString() : '从未登录'}</td>
-                    <td>
-                        <button class="btn btn-warning btn-sm" onclick="showResetPasswordModal(${user.ID})">
-                            重置密码
-                        </button>
+                    <td class="text-end">
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="showEditUserModal(${user.ID}, '${escapeHtml(user.username)}', '${escapeHtml(user.chinese_name)}', '${escapeHtml(user.email)}', '${escapeHtml(user.department)}')" title="编辑用户信息">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="showResetPasswordModal(${user.ID})" title="重置密码">
+                                <i class="bi bi-unlock"></i>
+                            </button>
+                        </div>
                     </td>
                 `;
                 userList.appendChild(row);
@@ -119,7 +190,8 @@
             document.getElementById('resetUserId').value = userId;
             document.getElementById('newPassword').value = '';
             document.getElementById('confirmPassword').value = '';
-            new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
+            const modal = new bootstrap.Modal(document.getElementById('resetPasswordModal'));
+            modal.show();
         }
 
         // 重置密码
@@ -144,14 +216,69 @@
 
                 const result = await response.json();
                 if (result.success) {
-                    alert('密码重置成功');
+                    // 移除按钮焦点
+                    document.activeElement.blur();
+                    // 关闭模态框
                     bootstrap.Modal.getInstance(document.getElementById('resetPasswordModal')).hide();
+                    alert('密码重置成功');
                 } else {
                     alert(result.message || '密码重置失败');
                 }
             } catch (error) {
                 console.error('Error resetting password:', error);
                 alert('密码重置失败');
+            }
+        }
+
+        // 显示编辑用户信息模态框
+        function showEditUserModal(userId, username, chineseName, email, department) {
+            document.getElementById('editUserId').value = userId;
+            document.getElementById('editUsername').value = username;
+            document.getElementById('editChineseName').value = chineseName;
+            document.getElementById('editEmail').value = email;
+            document.getElementById('editDepartment').value = department;
+            const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+            modal.show();
+        }
+
+        // 更新用户信息
+        async function updateUserInfo() {
+            const userId = document.getElementById('editUserId').value;
+            const chineseName = document.getElementById('editChineseName').value.trim();
+            const department = document.getElementById('editDepartment').value;
+
+            if (!chineseName || !department) {
+                alert('请填写所有必填字段');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        chinese_name: chineseName,
+                        department: department
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    // 移除按钮焦点
+                    document.activeElement.blur();
+                    // 关闭模态框
+                    bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+                    alert('用户信息更新成功');
+                    fetchUsers(); // 刷新用户列表
+                } else {
+                    alert(result.message || '用户信息更新失败');
+                }
+            } catch (error) {
+                console.error('Error updating user info:', error);
+                alert('用户信息更新失败');
             }
         }
 

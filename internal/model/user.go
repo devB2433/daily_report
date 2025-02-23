@@ -16,6 +16,7 @@ type User struct {
 	PasswordHash string     `gorm:"column:password_hash;size:255;not null" json:"-"`
 	Email        string     `gorm:"size:100" json:"email"`
 	Role         string     `gorm:"size:20;default:'user'" json:"role"` // admin or user
+	Department   string     `gorm:"size:20;not null" json:"department"` // 交付 or 产品研发测试
 	LastLoginAt  *time.Time `gorm:"default:null" json:"last_login_at"`  // 使用指针类型，允许为null
 }
 
