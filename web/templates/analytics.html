@@ -112,7 +112,7 @@
                 <div class="row align-items-center">
                     <div class="col-md-3">
                         <label class="form-label">时间范围</label>
-                        <select class="form-select" id="timeRangePreset" onchange="handlePresetChange()">
+                        <select class="form-select" id="timeRangePreset">
                             <option value="today">今天</option>
                             <option value="week">本周</option>
                             <option value="month" selected>本月</option>
@@ -124,9 +124,9 @@
                     <div class="col-md-6">
                         <label class="form-label">日期范围</label>
                         <div class="input-group">
-                            <input type="date" class="form-control" id="startDate" onchange="handleDateChange()">
+                            <input type="date" class="form-control" id="startDate">
                             <span class="input-group-text">至</span>
-                            <input type="date" class="form-control" id="endDate" onchange="handleDateChange()">
+                            <input type="date" class="form-control" id="endDate">
                         </div>
                     </div>
                     <div class="col-md-3 text-end">
@@ -178,26 +178,29 @@
         </div>
 
         <!-- 项目工时分布 -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">项目工时分布</h5>
-                <div class="btn-group">
-                    <button type="button" class="btn btn-outline-primary active" onclick="switchChartType('pie')" id="pieChartBtn">
-                        <i class="bi bi-pie-chart"></i> 饼图
-                    </button>
-                    <button type="button" class="btn btn-outline-primary" onclick="switchChartType('bar')" id="barChartBtn">
-                        <i class="bi bi-bar-chart"></i> 柱状图
-                    </button>
-                </div>
-            </div>
-            <div class="card-body">
-                <div style="height: 400px;">
-                    <canvas id="projectHoursChart"></canvas>
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">项目工时分布</h5>
+                        <div class="btn-group mb-3">
+                            <button id="pieChartBtn" class="btn btn-outline-primary active" onclick="switchChartType('pie')">
+                                <i class="bi bi-pie-chart"></i> 饼图
+                            </button>
+                            <button id="barChartBtn" class="btn btn-outline-primary" onclick="switchChartType('bar')">
+                                <i class="bi bi-bar-chart"></i> 柱状图
+                            </button>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="projectHoursChart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="row">
+        <!-- 项目工时趋势 -->
+        <div class="row mt-4">
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-body">
@@ -210,13 +213,41 @@
             </div>
         </div>
 
-        <div class="row">
+        <!-- 用户工时统计 -->
+        <div class="row mt-4">
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title">用户工时统计</h5>
                         <div style="height: 400px;">
                             <canvas id="userHoursChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 用户提交率统计 -->
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">用户日报提交率</h5>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>用户姓名</th>
+                                        <th>应提交次数</th>
+                                        <th>已提交次数</th>
+                                        <th>未提交次数</th>
+                                        <th>提交率</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="userSubmissionStats">
+                                    <!-- 数据将通过JavaScript动态填充 -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -384,25 +415,68 @@
                 url.searchParams.append('preset', timeRange.preset);
             }
 
-            fetch(url)
-                .then(response => response.json())
+            fetch(url, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Accept': 'application/json',
+                }
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.success) {
                         updateStatCards(data.data);
                         updateCharts(data.data);
+                    } else {
+                        throw new Error(data.message || '加载数据失败');
                     }
                 })
                 .catch(error => {
                     console.error('加载统计数据失败:', error);
+                    // 如果是未登录错误，重定向到登录页面
+                    if (error.message.includes('401') || error.message.includes('未登录')) {
+                        window.location.href = '/login';
+                    }
                 });
         }
 
-        // 更新统计卡片
+        // 更新统计卡片和图表
         function updateStatCards(data) {
             document.getElementById('totalUsers').textContent = data.total_users;
             document.getElementById('totalProjects').textContent = data.total_projects;
             document.getElementById('monthlyReports').textContent = data.monthly_reports;
             document.getElementById('monthlyHours').textContent = Math.round(data.monthly_hours);
+
+            // 更新用户提交率统计表格
+            const tbody = document.getElementById('userSubmissionStats');
+            tbody.innerHTML = ''; // 清空现有内容
+
+            if (data.user_submissions) {
+                data.user_submissions.forEach(stat => {
+                    const row = document.createElement('tr');
+                    
+                    // 修改提交率的样式逻辑：只有100%显示绿色，其他都显示红色
+                    if (stat.submission_rate >= 1) { // 100%的标绿
+                        row.classList.add('table-success');
+                    } else { // 小于100%的标红
+                        row.classList.add('table-danger');
+                    }
+
+                    row.innerHTML = `
+                        <td>${stat.chinese_name} (${stat.username})</td>
+                        <td>${stat.total_workdays}</td>
+                        <td>${stat.submitted_days}</td>
+                        <td>${stat.missing_days}</td>
+                        <td>${(stat.submission_rate * 100).toFixed(1)}%</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
 
             // 更新统计卡片的时间范围标签
             if (data.time_range) {

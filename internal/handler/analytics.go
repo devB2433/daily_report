@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	"daily-report/internal/database"
@@ -24,10 +25,11 @@ type AnalyticsSummary struct {
 		EndDate   string `json:"end_date"`
 		Preset    string `json:"preset"`
 	} `json:"time_range"`
-	ProjectHours   []model.ProjectHoursStat      `json:"project_hours"`
-	UserHours      []model.UserHoursStat         `json:"user_hours"`
-	SubmissionRate []model.SubmissionRateStat    `json:"submission_rate"`
-	DailyStats     []model.ProjectDailyHoursStat `json:"daily_stats"`
+	ProjectHours    []model.ProjectHoursStat      `json:"project_hours"`
+	UserHours       []model.UserHoursStat         `json:"user_hours"`
+	SubmissionRate  []model.SubmissionRateStat    `json:"submission_rate"`
+	DailyStats      []model.ProjectDailyHoursStat `json:"daily_stats"`
+	UserSubmissions []model.UserSubmissionStat    `json:"user_submissions"`
 }
 
 // GetAnalyticsSummary 获取统计分析摘要数据
@@ -277,6 +279,52 @@ func GetAnalyticsSummary(c *gin.Context) {
 		}
 	}
 
+	// 9. 获取用户提交率统计
+	var users []model.User
+	if err := db.Find(&users).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "获取用户列表失败",
+		})
+		return
+	}
+
+	// 计算工作日数量
+	workdays := calculateWorkdays(start, end)
+
+	// 获取每个用户在时间范围内的提交记录
+	for _, user := range users {
+		var submittedCount int64
+		if err := db.Model(&model.Report{}).
+			Where("user_id = ? AND date >= ? AND date < DATE_ADD(?, INTERVAL 1 DAY) AND deleted_at IS NULL",
+				user.ID, start.Format("2006-01-02"), end.Format("2006-01-02")).
+			Count(&submittedCount).Error; err != nil {
+			continue
+		}
+
+		stat := model.UserSubmissionStat{
+			Username:      user.Username,
+			ChineseName:   user.ChineseName,
+			TotalWorkdays: workdays,
+			SubmittedDays: int(submittedCount),
+			MissingDays:   workdays - int(submittedCount),
+		}
+
+		// 处理边缘情况：如果没有工作日，设置提交率为1.0（100%）
+		if workdays == 0 {
+			stat.SubmissionRate = 1.0
+		} else {
+			stat.SubmissionRate = float64(submittedCount) / float64(workdays)
+		}
+
+		summary.UserSubmissions = append(summary.UserSubmissions, stat)
+	}
+
+	// 按提交率降序排序
+	sort.Slice(summary.UserSubmissions, func(i, j int) bool {
+		return summary.UserSubmissions[i].SubmissionRate > summary.UserSubmissions[j].SubmissionRate
+	})
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    summary,
@@ -351,29 +399,30 @@ func ExportReportsCSV(c *gin.Context) {
 
 	db := database.GetDB()
 
-	// 查询报告数据
-	var reports []struct {
+	// 查询日报详细数据
+	var detailReports []struct {
 		Username    string    `json:"username"`
 		ChineseName string    `json:"chinese_name"`
 		Date        time.Time `json:"date"`
 		ProjectName string    `json:"project_name"`
+		Content     string    `json:"content"`
 		Hours       float64   `json:"hours"`
 	}
 
 	err = db.Table("tasks").
-		Select("users.username, users.chinese_name, reports.date, projects.name as project_name, tasks.hours").
+		Select("users.username, users.chinese_name, reports.date, projects.name as project_name, tasks.content, tasks.hours").
 		Joins("JOIN reports ON tasks.report_id = reports.id").
 		Joins("JOIN users ON reports.user_id = users.id").
 		Joins("JOIN projects ON tasks.project_id = projects.id").
 		Where("reports.date >= ? AND reports.date <= ? AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL",
 			start.Format("2006-01-02"), end.Format("2006-01-02")).
 		Order("reports.date ASC, users.username ASC").
-		Scan(&reports).Error
+		Scan(&detailReports).Error
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"message": "获取报告数据失败",
+			"message": "获取日报详细数据失败",
 		})
 		return
 	}
@@ -386,20 +435,52 @@ func ExportReportsCSV(c *gin.Context) {
 	// 写入UTF-8 BOM
 	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
-	// 写入CSV头
+	// 创建CSV写入器
 	writer := csv.NewWriter(c.Writer)
-	writer.Write([]string{"用户名", "姓名", "日期", "项目名称", "工时"})
 
-	// 写入数据
-	for _, report := range reports {
+	// 写入日报详细数据表头
+	writer.Write([]string{"用户名", "姓名", "日期", "项目名称", "工作内容", "工时"})
+
+	// 写入日报详细数据
+	for _, report := range detailReports {
 		writer.Write([]string{
 			report.Username,
 			report.ChineseName,
 			report.Date.Format("2006-01-02"),
 			report.ProjectName,
+			report.Content,
 			fmt.Sprintf("%.1f", report.Hours),
 		})
 	}
 
 	writer.Flush()
+}
+
+// 计算两个日期之间的工作日数量（不包括周末）
+func calculateWorkdays(start, end time.Time) int {
+	// 如果开始日期在结束日期之后，返回0
+	if start.After(end) {
+		return 0
+	}
+
+	// 如果是同一天，检查是否是工作日
+	if start.Equal(end) {
+		if start.Weekday() != time.Saturday && start.Weekday() != time.Sunday {
+			return 1
+		}
+		return 0
+	}
+
+	workdays := 0
+	current := start
+
+	for !current.After(end) {
+		// 周六是6，周日是0
+		if current.Weekday() != time.Saturday && current.Weekday() != time.Sunday {
+			workdays++
+		}
+		current = current.AddDate(0, 0, 1)
+	}
+
+	return workdays
 }

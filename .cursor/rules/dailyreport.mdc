@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+---
+
+# Your rule content
+## 用中文和我交互。
+## 每次修改代码后，用compose.dev编译运行系统，除非我明确要求你用别的方法编译。
+- You can @ files here
+- You can use markdown but dont have to
