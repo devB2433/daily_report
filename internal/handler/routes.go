@@ -46,6 +46,11 @@ func RegisterRoutes(router *gin.Engine) {
 			c.Redirect(http.StatusFound, "/login")
 			return
 		}
+		// 检查是否为管理员
+		if user.Role != "admin" {
+			c.Redirect(http.StatusFound, "/")
+			return
+		}
 		c.HTML(http.StatusOK, "projects", gin.H{
 			"User": user,
 		})
@@ -61,14 +66,18 @@ func RegisterRoutes(router *gin.Engine) {
 
 		authorized := api.Group("/", AuthMiddleware())
 		{
-			authorized.GET("/projects", GetProjects)
-			authorized.POST("/projects", CreateProject)
-			authorized.PUT("/projects/:id", UpdateProject)
-			authorized.DELETE("/projects/:id", DeleteProject)
-
-			// 用户管理API（仅管理员可用）
+			// 需要管理员权限的API
 			adminOnly := authorized.Group("/", RootRequired())
 			{
+				// 项目管理API
+				adminOnly.GET("/projects", GetProjects)
+				adminOnly.POST("/projects", CreateProject)
+				adminOnly.PUT("/projects/:id", UpdateProject)
+				adminOnly.DELETE("/projects/:id", DeleteProject)
+				adminOnly.GET("/projects/export", ExportProjects)
+				adminOnly.POST("/projects/import", ImportProjects)
+
+				// 用户管理API
 				adminOnly.GET("/users", GetUsers)
 				adminOnly.POST("/users/:id/reset-password", ResetUserPassword)
 				adminOnly.PUT("/users/:id", UpdateUserInfo)

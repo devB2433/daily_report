@@ -404,14 +404,16 @@ func ExportReportsCSV(c *gin.Context) {
 		Username    string    `json:"username"`
 		ChineseName string    `json:"chinese_name"`
 		Department  string    `json:"department"`
+		Level       string    `json:"level"`
 		Date        time.Time `json:"date"`
+		ProjectCode string    `json:"project_code"`
 		ProjectName string    `json:"project_name"`
 		Content     string    `json:"content"`
 		Hours       float64   `json:"hours"`
 	}
 
 	err = db.Table("tasks").
-		Select("users.username, users.chinese_name, users.department, reports.date, projects.name as project_name, tasks.content, tasks.hours").
+		Select("users.username, users.chinese_name, users.department, users.level, reports.date, projects.code as project_code, projects.name as project_name, tasks.content, tasks.hours").
 		Joins("JOIN reports ON tasks.report_id = reports.id").
 		Joins("JOIN users ON reports.user_id = users.id").
 		Joins("JOIN projects ON tasks.project_id = projects.id").
@@ -440,15 +442,22 @@ func ExportReportsCSV(c *gin.Context) {
 	writer := csv.NewWriter(c.Writer)
 
 	// 写入日报详细数据表头
-	writer.Write([]string{"用户名", "姓名", "部门", "日期", "项目名称", "工作内容", "工时"})
+	writer.Write([]string{"用户名", "姓名", "部门", "级别", "周数", "日期", "项目编号", "项目名称", "工作内容", "工时"})
 
 	// 写入日报详细数据
 	for _, report := range detailReports {
+		// 获取周数
+		_, week := report.Date.ISOWeek()
+		weekStr := fmt.Sprintf("WEEK %d", week)
+
 		writer.Write([]string{
 			report.Username,
 			report.ChineseName,
 			report.Department,
+			report.Level,
+			weekStr,
 			report.Date.Format("2006-01-02"),
+			report.ProjectCode,
 			report.ProjectName,
 			report.Content,
 			fmt.Sprintf("%.1f", report.Hours),

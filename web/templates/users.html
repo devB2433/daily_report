@@ -52,6 +52,7 @@
                                 <th>中文姓名</th>
                                 <th>邮箱</th>
                                 <th>部门</th>
+                                <th>级别</th>
                                 <th>角色</th>
                                 <th>最后登录</th>
                                 <th class="text-end">操作</th>
@@ -128,6 +129,14 @@
                             <option value="产品研发测试">产品研发测试</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label for="editLevel" class="form-label">级别</label>
+                        <select class="form-select" id="editLevel" required>
+                            <option value="初级">初级</option>
+                            <option value="中级">中级</option>
+                            <option value="高级">高级</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
@@ -168,11 +177,12 @@
                     <td>${escapeHtml(user.chinese_name)}</td>
                     <td>${escapeHtml(user.email)}</td>
                     <td>${escapeHtml(user.department)}</td>
+                    <td>${escapeHtml(user.level)}</td>
                     <td><span class="badge bg-${user.role === 'admin' ? 'danger' : 'primary'}">${escapeHtml(user.role)}</span></td>
                     <td>${user.last_login_at ? new Date(user.last_login_at).toLocaleString() : '从未登录'}</td>
                     <td class="text-end">
                         <div class="btn-group">
-                            <button class="btn btn-sm btn-outline-primary" onclick="showEditUserModal(${user.ID}, '${escapeHtml(user.username)}', '${escapeHtml(user.chinese_name)}', '${escapeHtml(user.email)}', '${escapeHtml(user.department)}')" title="编辑用户信息">
+                            <button class="btn btn-sm btn-outline-primary" onclick="showEditUserModal(${user.ID}, '${escapeHtml(user.username)}', '${escapeHtml(user.chinese_name)}', '${escapeHtml(user.email)}', '${escapeHtml(user.department)}', '${escapeHtml(user.level)}')" title="编辑用户信息">
                                 <i class="bi bi-pencil"></i>
                             </button>
                             <button class="btn btn-sm btn-outline-primary" onclick="showResetPasswordModal(${user.ID})" title="重置密码">
@@ -231,12 +241,13 @@
         }
 
         // 显示编辑用户信息模态框
-        function showEditUserModal(userId, username, chineseName, email, department) {
+        function showEditUserModal(userId, username, chineseName, email, department, level) {
             document.getElementById('editUserId').value = userId;
             document.getElementById('editUsername').value = username;
             document.getElementById('editChineseName').value = chineseName;
             document.getElementById('editEmail').value = email;
             document.getElementById('editDepartment').value = department;
+            document.getElementById('editLevel').value = level;
             const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
             modal.show();
         }
@@ -246,8 +257,9 @@
             const userId = document.getElementById('editUserId').value;
             const chineseName = document.getElementById('editChineseName').value.trim();
             const department = document.getElementById('editDepartment').value;
+            const level = document.getElementById('editLevel').value;
 
-            if (!chineseName || !department) {
+            if (!chineseName || !department || !level) {
                 alert('请填写所有必填字段');
                 return;
             }
@@ -261,7 +273,8 @@
                     credentials: 'same-origin',
                     body: JSON.stringify({
                         chinese_name: chineseName,
-                        department: department
+                        department: department,
+                        level: level
                     })
                 });
 

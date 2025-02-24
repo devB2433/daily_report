@@ -35,6 +35,7 @@ func UpdateUserInfo(c *gin.Context) {
 	var req struct {
 		ChineseName string `json:"chinese_name" binding:"required"`
 		Department  string `json:"department" binding:"required"`
+		Level       string `json:"level" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -63,6 +64,15 @@ func UpdateUserInfo(c *gin.Context) {
 		return
 	}
 
+	// 验证级别
+	if req.Level != "初级" && req.Level != "中级" && req.Level != "高级" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "级别必须是'初级'、'中级'或'高级'",
+		})
+		return
+	}
+
 	db := database.GetDB()
 	var user model.User
 	if err := db.First(&user, userID).Error; err != nil {
@@ -76,6 +86,7 @@ func UpdateUserInfo(c *gin.Context) {
 	// 更新用户信息
 	user.ChineseName = req.ChineseName
 	user.Department = req.Department
+	user.Level = req.Level
 
 	if err := db.Save(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

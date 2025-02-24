@@ -17,6 +17,7 @@ type User struct {
 	Email        string     `gorm:"size:100" json:"email"`
 	Role         string     `gorm:"size:20;default:'user'" json:"role"` // admin or user
 	Department   string     `gorm:"size:20;not null" json:"department"` // 交付 or 产品研发测试
+	Level        string     `gorm:"size:20;default:'初级'" json:"level"`  // 用户级别：初级、中级、高级
 	LastLoginAt  *time.Time `gorm:"default:null" json:"last_login_at"`  // 使用指针类型，允许为null
 }
 

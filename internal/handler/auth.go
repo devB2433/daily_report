@@ -394,7 +394,7 @@ func GetUsers(c *gin.Context) {
 	var users []model.User
 
 	// 查询所有用户，按用户名排序
-	if err := db.Select("id, username, chinese_name, email, role, department, last_login_at").Order("username ASC").Find(&users).Error; err != nil {
+	if err := db.Select("id, username, chinese_name, email, role, department, level, last_login_at").Order("username ASC").Find(&users).Error; err != nil {
 		log.Printf("Failed to get users: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
