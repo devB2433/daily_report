@@ -101,8 +101,17 @@
                 padding: 15px;
             }
         }
+        .markdown-body p {
+            white-space: pre-wrap;
+        }
     </style>
     <script>
+        // 配置marked.js
+        marked.setOptions({
+            breaks: true,  // 将换行符转换为 <br>
+            gfm: true     // 启用GitHub风格的Markdown
+        });
+
         // 格式化日期时间
         function formatDateTime(dateStr) {
             const date = new Date(dateStr);
@@ -141,9 +150,8 @@
                                 <div class="mb-2">
                                     <div class="d-flex justify-content-between">
                                         <strong class="text-primary">${task.project ? task.project.name : '-'}</strong>
-                                        <span class="text-muted">${task.hours}小时</span>
                                     </div>
-                                    <div class="text-muted">${task.content}</div>
+                                    <div class="text-muted" style="white-space: pre-wrap;">${task.content}</div>
                                 </div>
                             `).join('');
 
@@ -198,7 +206,7 @@
                         mdContent += `## 工作内容\n\n`;
                         report.tasks.forEach(task => {
                             mdContent += `### ${task.project ? task.project.name : '未分类'}（${task.hours}小时）\n`;
-                            mdContent += `- ${task.content}\n\n`;
+                            mdContent += `${task.content}\n\n`;
                         });
 
                         // 保存原始Markdown内容供复制使用
