@@ -99,8 +99,7 @@ func CreateReport(c *gin.Context) {
 	db := database.GetDB()
 
 	// 解析日报时间
-	loc := getTimeZone()
-	reportTime, err := time.ParseInLocation("2006-01-02 15:04", req.ReportTime, loc)
+	reportTime, err := time.Parse("2006-01-02 15:04", req.ReportTime)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -109,11 +108,25 @@ func CreateReport(c *gin.Context) {
 		return
 	}
 
+	// 验证日报日期是否与当前日期相同
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	now := time.Now().In(loc)
+	reportDate := reportTime.Format("2006-01-02")
+	currentDate := now.Format("2006-01-02")
+	fmt.Printf("Report Date: %s, Current Date: %s\n", reportDate, currentDate) // 添加调试日志
+	if reportDate != currentDate {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "日报提交失败：只能提交当天的日报",
+		})
+		return
+	}
+
 	// 创建日报记录
 	report := model.Report{
 		UserID:      uid,
 		Date:        reportTime,
-		SubmittedAt: time.Now().In(loc),
+		SubmittedAt: time.Now(),
 	}
 
 	// 检查是否已存在当天的日报

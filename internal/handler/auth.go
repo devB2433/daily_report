@@ -466,3 +466,20 @@ func ResetUserPassword(c *gin.Context) {
 		"message": "密码重置成功",
 	})
 }
+
+// GetServerTime 获取服务器当前时间
+func GetServerTime(c *gin.Context) {
+	// 获取服务器当前时间（使用中国时区）
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		loc = time.UTC
+	}
+	now := time.Now().In(loc)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"time": now.Format("2006-01-02 15:04"),
+		},
+	})
+}

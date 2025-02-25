@@ -97,8 +97,9 @@
             <div class="card-body">
                 <form id="reportForm">
                     <div class="mb-3">
-                        <label for="reportTime" class="form-label">日报时间</label>
-                        <input type="text" class="form-control" id="reportTime" name="report_time" readonly>
+                        <label class="form-label">日报时间</label>
+                        <div id="reportTime" class="form-control-plaintext" style="border: none; background: none; padding: 0.375rem 0;"></div>
+                        <input type="hidden" name="report_time" id="reportTimeInput">
                     </div>
 
                     <div class="mb-3">
@@ -336,7 +337,7 @@
                     }
 
                     const submitData = {
-                        report_time: document.getElementById('reportTime').value,
+                        report_time: document.getElementById('reportTimeInput').value,
                         items: tasks
                     };
 
@@ -418,9 +419,24 @@
         // 页面加载时的初始化
         document.addEventListener('DOMContentLoaded', function() {
             checkLoginStatus();
-            // 设置当前时间
-            const now = new Date();
-            document.getElementById('reportTime').value = formatDateTime(now);
+            // 从服务器获取当前时间
+            fetch('/api/server/time')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('reportTime').textContent = data.data.time;
+                        document.getElementById('reportTimeInput').value = data.data.time;
+                    } else {
+                        throw new Error(data.message || '获取服务器时间失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('获取服务器时间失败:', error);
+                    // 如果获取服务器时间失败，使用本地时间作为后备
+                    const now = new Date();
+                    document.getElementById('reportTime').textContent = formatDateTime(now);
+                    document.getElementById('reportTimeInput').value = formatDateTime(now);
+                });
             
             // 加载项目列表
             loadProjects();

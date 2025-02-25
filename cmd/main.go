@@ -99,6 +99,7 @@ func setupRoutes(r *gin.Engine) {
 			authorized.GET("/projects", handler.GetProjects)
 			authorized.GET("/projects/export", handler.ExportProjects)
 			authorized.POST("/projects/import", handler.ImportProjects)
+			authorized.GET("/server/time", handler.GetServerTime)
 
 			// 管理员专用路由
 			adminOnly := authorized.Group("/", handler.RootRequired())
