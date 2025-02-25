@@ -355,12 +355,8 @@
         function viewReport(date) {
             console.log('Viewing report for date:', date);
             
-            // 格式化日期为 YYYY-MM-DD
-            const formattedDate = new Date(date).toISOString().split('T')[0];
-            console.log('Formatted date:', formattedDate);
-            
-            // 先获取该日期的报告ID
-            fetch(`/api/reports?start_date=${formattedDate}&end_date=${formattedDate}`)
+            // 直接使用传入的日期，与 deleteReport 保持一致
+            fetch(`/api/reports?start_date=${date}&end_date=${date}`)
                 .then(response => {
                     console.log('First API response status:', response.status);
                     return response.json();
@@ -413,6 +409,12 @@
                         // 显示模态框
                         const modal = new bootstrap.Modal(document.getElementById('reportDetailModal'));
                         modal.show();
+                        
+                        // 设置焦点管理
+                        const modalElement = document.getElementById('reportDetailModal');
+                        modalElement.addEventListener('shown.bs.modal', function () {
+                            document.getElementById('closeButton').focus();
+                        });
                     } else {
                         alert(data.message || '获取日报详情失败');
                     }
