@@ -216,31 +216,37 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">导入项目</h5>
+                    <h5 class="modal-title fs-6">导入项目</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <form id="importProjectsForm">
                         <div class="mb-3">
-                            <label for="projectsFile" class="form-label">选择CSV文件</label>
-                            <input type="file" class="form-control" id="projectsFile" accept=".csv" required>
+                            <label for="projectsFile" class="form-label small">选择CSV文件</label>
+                            <input type="file" class="form-control form-control-sm" id="projectsFile" accept=".csv" required>
                         </div>
-                        <div class="alert alert-info">
-                            <h6>CSV文件格式说明：</h6>
-                            <p class="mb-1">1. 文件必须包含以下列：</p>
-                            <ul class="mb-1">
-                                <li>项目编号</li>
-                                <li>项目名称</li>
-                                <li>状态（active/completed/suspended）</li>
-                                <li>描述</li>
+                        <div class="alert alert-info small p-2">
+                            <p class="mb-1 text-muted"><small>1. 数据列含义：</small></p>
+                            <ul class="mb-1 text-muted ps-4">
+                                <li><small>code（项目代号，必填且唯一）</small></li>
+                                <li><small>name（项目名称，必填）</small></li>
+                                <li><small>status（状态：active/completed/suspended）</small></li>
+                                <li><small>manager（项目经理）</small></li>
+                                <li><small>description（项目描述）</small></li>
                             </ul>
-                            <p class="mb-0">2. 首行必须是列标题</p>
+                            <p class="mb-1 text-muted"><small>2. 原则上，导入文件格式应与导出文件格式相同，建议先导出，修改后再导入。</small></p>
+                            <p class="mb-1 text-muted"><small>3. 导入规则：</small></p>
+                            <ul class="mb-0 text-muted ps-4">
+                                <li><small>如果项目代号已存在，将更新该项目的其他信息</small></li>
+                                <li><small>如果项目代号不存在，将创建新项目</small></li>
+                                <li><small>所有错误将被记录，若有任何错误发生，整个导入过程将被回滚</small></li>
+                            </ul>
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-primary" onclick="importProjects()">导入</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-sm btn-primary" onclick="importProjects(event)">导入</button>
                 </div>
             </div>
         </div>
@@ -693,7 +699,8 @@
         }
 
         // 导入项目
-        function importProjects() {
+        function importProjects(event) {
+            event.preventDefault();
             const fileInput = document.getElementById('projectsFile');
             if (!fileInput.files.length) {
                 alert('请选择要导入的文件');
