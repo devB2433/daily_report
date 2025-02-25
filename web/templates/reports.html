@@ -287,10 +287,10 @@
                                     <td class="align-middle text-center">${totalHours}</td>
                                     <td class="align-middle">
                                         <div class="btn-group">
-                                            <button class="btn btn-sm btn-outline-primary" onclick="viewReport('${report.date}')">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="viewReport('${report.ID}')">
                                                 <i class="bi bi-eye"></i>
                                             </button>
-                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteReport('${report.date}')">
+                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteReport('${report.ID}')">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -309,37 +309,27 @@
         }
 
         // 删除日报
-        function deleteReport(date) {
+        function deleteReport(id) {
             if (!confirm('确定要删除这篇日报吗？此操作不可恢复。')) {
                 return;
             }
 
-            // 获取该日期的报告ID
-            fetch(`/api/reports?start_date=${date}&end_date=${date}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.data.length > 0) {
-                        const reportId = data.data[0].ID;
-                        return fetch(`/api/reports/${reportId}`, {
-                            method: 'DELETE'
-                        });
-                    } else {
-                        throw new Error('未找到该日期的日报');
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('日报删除成功');
-                        handleMonthChange(); // 重新加载当前月份的日报列表
-                    } else {
-                        alert(data.message || '删除失败');
-                    }
-                })
-                .catch(error => {
-                    console.error('删除日报出错:', error);
-                    alert('删除失败：' + error.message);
-                });
+            fetch(`/api/reports/${id}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('日报删除成功');
+                    handleMonthChange(); // 重新加载当前月份的日报列表
+                } else {
+                    alert(data.message || '删除失败');
+                }
+            })
+            .catch(error => {
+                console.error('删除日报出错:', error);
+                alert('删除失败：' + error.message);
+            });
         }
 
         // 获取状态徽章
@@ -352,34 +342,12 @@
         }
 
         // 查看日报详情
-        function viewReport(date) {
-            console.log('Viewing report for date:', date);
-            
-            // 直接使用传入的日期，与 deleteReport 保持一致
-            fetch(`/api/reports?start_date=${date}&end_date=${date}`)
-                .then(response => {
-                    console.log('First API response status:', response.status);
-                    return response.json();
-                })
+        function viewReport(id) {
+            fetch(`/api/reports/${id}`)
+                .then(response => response.json())
                 .then(data => {
-                    console.log('First API response data:', data);
-                    if (data.success && data.data.length > 0) {
-                        const reportId = data.data[0].ID;
-                        console.log('Found report ID:', reportId);
-                        return fetch(`/api/reports/${reportId}`);
-                    } else {
-                        throw new Error('未找到该日期的日报');
-                    }
-                })
-                .then(response => {
-                    console.log('Second API response status:', response.status);
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('Second API response data:', data);
                     if (data.success) {
                         const report = data.data;
-                        console.log('Report details:', report);
                         
                         // 生成Markdown内容
                         let mdContent = `# 工作日报 (${report.date})\n\n`;
@@ -389,7 +357,6 @@
                         let totalHours = 0;
                         report.tasks.forEach(task => {
                             totalHours += task.hours;
-                            console.log('Task:', task);
                         });
                         mdContent += `> 总工时：${totalHours}小时\n\n`;
                         
@@ -414,6 +381,11 @@
                         const modalElement = document.getElementById('reportDetailModal');
                         modalElement.addEventListener('shown.bs.modal', function () {
                             document.getElementById('closeButton').focus();
+                        });
+
+                        modalElement.addEventListener('hidden.bs.modal', function () {
+                            // 找到触发模态框的按钮并重新聚焦
+                            document.querySelector(`button[onclick="viewReport(${id})"]`).focus();
                         });
                     } else {
                         alert(data.message || '获取日报详情失败');
