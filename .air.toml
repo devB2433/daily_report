@@ -28,6 +28,9 @@ kill_delay = "5s"
 log = "time"
 # 颜色
 color = true
+# 启用轮询模式
+poll = true
+poll_interval = 500
 
 [log]
 # 显示日志时间
