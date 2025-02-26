@@ -1,9 +1,10 @@
 <!DOCTYPE html>
+<!-- Test hot reload -->
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>首页 - {{ .title }}</title>
+    <title>比瓴科技 - {{ .title }}</title>
     <link rel="icon" type="image/x-icon" href="/static/img/favicon.ico">
     <!-- Bootstrap CSS -->
     <link href="/static/vendor/css/bootstrap.min.css" rel="stylesheet">
@@ -98,7 +99,7 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
-            <a class="navbar-brand" href="/">工作管理系统</a>
+            <a class="navbar-brand" href="/">工作日报系统</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -280,10 +281,16 @@
                 .then(checkResponse)
                 .then(data => {
                     if (!data || window.isLoggingOut) return;
-                    if (!data.data || !Array.isArray(data.data.daily_stats)) return;
+                    if (!data.data || !Array.isArray(data.data.daily_stats)) {
+                        showEmptyState('dailyHoursChart', 'bi-graph-up', '暂无趋势数据');
+                        return;
+                    }
                     
                     const dailyStats = data.data.daily_stats;
-                    if (dailyStats.length === 0) return;
+                    if (!dailyStats || dailyStats.length === 0) {
+                        showEmptyState('dailyHoursChart', 'bi-graph-up', '暂无趋势数据');
+                        return;
+                    }
 
                     // 获取所有日期和项目
                     const dates = dailyStats.map(stat => stat.date);
@@ -297,6 +304,20 @@
                             });
                         }
                     });
+
+                    // 检查是否有有效的项目数据
+                    if (allProjects.size === 0) {
+                        showEmptyState('dailyHoursChart', 'bi-graph-up', '暂无趋势数据');
+                        return;
+                    }
+
+                    const ctx = document.getElementById('dailyHoursChart');
+                    if (!ctx || window.isLoggingOut) return;
+
+                    // 销毁旧图表
+                    if (window.dailyHoursChart instanceof Chart) {
+                        window.dailyHoursChart.destroy();
+                    }
 
                     // 为每个项目准备数据
                     const datasets = Array.from(allProjects).map(projectName => {
@@ -335,14 +356,6 @@
                             pointHoverRadius: 5
                         };
                     });
-
-                    const ctx = document.getElementById('dailyHoursChart');
-                    if (!ctx || window.isLoggingOut) return;
-
-                    // 销毁旧图表
-                    if (window.dailyHoursChart instanceof Chart) {
-                        window.dailyHoursChart.destroy();
-                    }
 
                     // 创建新图表
                     window.dailyHoursChart = new Chart(ctx, {
@@ -384,14 +397,6 @@
                                                 pointStyle: 'circle'
                                             }));
                                         }
-                                    },
-                                    onClick: function(e, legendItem, legend) {
-                                        const index = legendItem.index;
-                                        const chart = legend.chart;
-                                        const meta = chart.getDatasetMeta(index);
-
-                                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
-                                        chart.update();
                                     }
                                 },
                                 tooltip: {
@@ -425,6 +430,8 @@
                             scales: {
                                 y: {
                                     beginAtZero: true,
+                                    suggestedMin: 0,
+                                    suggestedMax: 10,
                                     title: {
                                         display: true,
                                         text: '工时（小时）',
@@ -481,8 +488,8 @@
                     if (!data || window.isLoggingOut) return;
                     
                     const projectStats = data.data?.project_stats;
-                    if (!projectStats || !Array.isArray(projectStats)) {
-                        console.log('没有项目工时数据或数据格式不正确');
+                    if (!projectStats || !Array.isArray(projectStats) || projectStats.length === 0) {
+                        showEmptyState('projectHoursChart', 'bi-bar-chart', '暂无工时数据');
                         return;
                     }
 
@@ -491,10 +498,10 @@
                         typeof stat === 'object' && 
                         stat.project_name && 
                         typeof stat.total_hours !== 'undefined'
-                    ).sort((a, b) => b.total_hours - a.total_hours); // 按工时降序排序
+                    ).sort((a, b) => b.total_hours - a.total_hours);
 
                     if (validStats.length === 0) {
-                        console.log('没有有效的项目工时数据');
+                        showEmptyState('projectHoursChart', 'bi-bar-chart', '暂无工时数据');
                         return;
                     }
 
@@ -567,14 +574,6 @@
                                                 pointStyle: 'circle'
                                             }));
                                         }
-                                    },
-                                    onClick: function(e, legendItem, legend) {
-                                        const index = legendItem.index;
-                                        const chart = legend.chart;
-                                        const meta = chart.getDatasetMeta(0);
-                                        
-                                        meta.data[index].hidden = !meta.data[index].hidden;
-                                        chart.update();
                                     }
                                 },
                                 tooltip: {
@@ -599,10 +598,6 @@
                                         }
                                     }
                                 }
-                            },
-                            animation: {
-                                animateRotate: true,
-                                animateScale: true
                             }
                         }
                     });
@@ -700,6 +695,50 @@
                         console.error('加载日历数据失败:', error);
                     }
                 });
+        }
+
+        // 显示空状态的通用函数
+        function showEmptyState(chartId, iconClass, message) {
+            const ctx = document.getElementById(chartId);
+            if (!ctx) return;
+            
+            // 销毁现有图表
+            if (window[chartId] instanceof Chart) {
+                window[chartId].destroy();
+            }
+            
+            const container = ctx.parentElement;
+            if (!container) return;
+            
+            // 清除容器中的现有内容
+            container.innerHTML = '';
+            
+            // 创建空状态提示
+            const emptyState = document.createElement('div');
+            emptyState.style.position = 'absolute';
+            emptyState.style.top = '50%';
+            emptyState.style.left = '50%';
+            emptyState.style.transform = 'translate(-50%, -50%)';
+            emptyState.style.textAlign = 'center';
+            emptyState.style.color = '#6c757d';
+            emptyState.style.width = '100%';
+            
+            // 添加图标
+            const icon = document.createElement('i');
+            icon.className = `bi ${iconClass}`;
+            icon.style.fontSize = '3rem';
+            icon.style.marginBottom = '1rem';
+            icon.style.display = 'block';
+            emptyState.appendChild(icon);
+            
+            // 添加文本
+            const text = document.createElement('div');
+            text.textContent = message;
+            text.style.fontSize = '1rem';
+            emptyState.appendChild(text);
+            
+            // 添加空状态提示到容器
+            container.appendChild(emptyState);
         }
     </script>
 </body>

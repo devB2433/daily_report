@@ -16,14 +16,14 @@ cmd = "go build -o ./tmp/main ./cmd/main.go"
 bin = "./tmp/main"
 # 自定义参数
 args_bin = []
-# 延迟时间
-delay = 1000
+# 延迟时间（减少到 100ms）
+delay = 100
 # 是否在启动时重新构建
 stop_on_error = false
 # 发生错误时是否发送通知
 send_interrupt = false
 # 终止信号
-kill_delay = "10s"
+kill_delay = "5s"
 # 日志格式
 log = "time"
 # 颜色
@@ -45,4 +45,4 @@ clear_on_rebuild = true
 
 [misc]
 # 当遇到错误时清理旧的二进制文件
-clean_on_exit = false 
+clean_on_exit = true 

@@ -16,8 +16,14 @@ services:
       - DB_CHARSET=utf8mb4
       - DB_LOC=Local
     volumes:
-      - .:/app
-      - ./tmp:/app/tmp
+      - type: bind
+        source: .
+        target: /app
+        consistency: cached
+      - type: bind
+        source: ./tmp
+        target: /app/tmp
+        consistency: cached
       - go-mod-cache:/go/pkg/mod
     depends_on:
       mysql:
