@@ -116,10 +116,15 @@ docker-compose logs -f app
 docker-compose logs -f mysql
 ```
 
+
 ### 系统更新
 ```bash
+# 放弃本地修改（之前本地修改过Dockerfile的代理设置，默认是注释的）
+git fetch origin main
+git reset --hard origin/main
+
 # 拉取最新代码
-git pull
+git pull origin main
 
 #检查环境时间，确保是北京时间正确无误
 date
