@@ -254,8 +254,9 @@
 
                         // 过滤指定日期范围内的报告
                         const filteredReports = data.data.filter(report => {
-                            const reportDate = report.date;
-                            return reportDate >= startDate && reportDate <= endDate;
+                            // 提取日期部分进行比较
+                            const reportDateStr = report.date.split('T')[0];
+                            return reportDateStr >= startDate && reportDateStr <= endDate;
                         });
 
                         if (filteredReports.length === 0) {

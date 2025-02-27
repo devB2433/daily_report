@@ -122,10 +122,11 @@ func CreateReport(c *gin.Context) {
 		return
 	}
 
-	// 创建日报记录
+	// 创建日报记录 - 修复时区问题，确保日期不会变化
 	report := model.Report{
-		UserID:      uid,
-		Date:        reportTime,
+		UserID: uid,
+		// 只保留日期部分，不包含时间，避免时区转换导致日期变化
+		Date:        time.Date(reportTime.Year(), reportTime.Month(), reportTime.Day(), 0, 0, 0, 0, time.Local),
 		SubmittedAt: time.Now(),
 	}
 
