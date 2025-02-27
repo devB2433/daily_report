@@ -121,6 +121,18 @@ docker-compose logs -f mysql
 # 拉取最新代码
 git pull
 
+#检查环境时间，确保是北京时间正确无误
+date
+
+
+#如果时间不对，先同步
+ntpdate ntp.aliyun.com
+
+#最好加到crond里定时获取
+
+#修改Dockerfile，取消这一行注释，让服务器优先使用国内的代理地址，加快编译速度
+ENV GOPROXY=https://goproxy.cn,direct
+
 # 重新构建并启动
 docker-compose -f docker-compose.yml down
 docker-compose -f docker-compose.yml build --no-cache
@@ -131,4 +143,5 @@ docker-compose -f docker-compose.yml up -d
 1、管理员登陆后，可以创建项目。
 2、普通成员首先应注册账号，成员登陆后，可以提交日报，查看日报。
 3、管理员可以查看所有成员的日报，也可以查看统计。
+
 
