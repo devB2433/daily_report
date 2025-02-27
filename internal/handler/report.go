@@ -27,7 +27,7 @@ type CreateReportRequest struct {
 }
 
 // getTimeZone 获取时区
-func getTimeZone() *time.Location {
+/*func getTimeZone() *time.Location {
 	// 尝试从系统获取时区
 	if tz, err := time.LoadLocation("Local"); err == nil {
 		return tz
@@ -41,6 +41,7 @@ func getTimeZone() *time.Location {
 	// 如果都失败了，返回 UTC
 	return time.UTC
 }
+*/
 
 // CreateReport 创建日报
 func CreateReport(c *gin.Context) {
@@ -109,8 +110,7 @@ func CreateReport(c *gin.Context) {
 	}
 
 	// 验证日报日期是否与当前日期相同
-	loc, _ := time.LoadLocation("Asia/Shanghai")
-	now := time.Now().In(loc)
+	now := time.Now() // 直接使用服务器当前时间，不进行时区转换
 	reportDate := reportTime.Format("2006-01-02")
 	currentDate := now.Format("2006-01-02")
 	fmt.Printf("Report Date: %s, Current Date: %s\n", reportDate, currentDate) // 添加调试日志

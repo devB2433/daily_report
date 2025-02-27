@@ -58,7 +58,7 @@
                         <a class="nav-link" href="/users">用户管理</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link active" href="/reports/new">写日报</a>
+                        <a class="nav-link active" href="/reports/new"></a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/reports">我的日报</a>
@@ -423,6 +423,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
+                        // 直接使用服务器返回的时间
                         document.getElementById('reportTime').textContent = data.data.time;
                         document.getElementById('reportTimeInput').value = data.data.time;
                     } else {

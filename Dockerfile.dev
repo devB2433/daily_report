@@ -1,8 +1,12 @@
 FROM golang:1.21-alpine
 
 # 安装必要的系统依赖和 air（用于热重载）
-RUN apk add --no-cache gcc musl-dev && \
+RUN apk add --no-cache gcc musl-dev tzdata && \
     go install github.com/cosmtrek/air@v1.49.0
+
+# 设置时区为 Asia/Shanghai (UTC+8)
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 WORKDIR /app
 

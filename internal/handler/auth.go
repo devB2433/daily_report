@@ -469,12 +469,8 @@ func ResetUserPassword(c *gin.Context) {
 
 // GetServerTime 获取服务器当前时间
 func GetServerTime(c *gin.Context) {
-	// 获取服务器当前时间（使用中国时区）
-	loc, err := time.LoadLocation("Asia/Shanghai")
-	if err != nil {
-		loc = time.UTC
-	}
-	now := time.Now().In(loc)
+	// 直接使用服务器当前时间，不进行任何时区转换
+	now := time.Now()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
