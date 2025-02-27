@@ -35,3 +35,23 @@ type UserSubmissionStat struct {
 	MissingDays    int     `json:"missing_days"`    // 未提交次数
 	SubmissionRate float64 `json:"submission_rate"` // 提交率
 }
+
+// TimeRange 时间范围
+type TimeRange struct {
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+	Preset    string `json:"preset"`
+}
+
+// AnalyticsSummary 统计分析摘要
+type AnalyticsSummary struct {
+	TotalUsers      int64                   `json:"total_users"`
+	TotalProjects   int64                   `json:"total_projects"`
+	TotalReports    int64                   `json:"monthly_reports"`
+	TotalHours      float64                 `json:"monthly_hours"`
+	TimeRange       TimeRange               `json:"time_range"`
+	ProjectHours    []ProjectHoursStat      `json:"project_hours"`
+	UserHours       []UserHoursStat         `json:"user_hours"`
+	DailyStats      []ProjectDailyHoursStat `json:"daily_stats"`
+	UserSubmissions []UserSubmissionStat    `json:"user_submissions"`
+}

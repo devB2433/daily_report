@@ -4,11 +4,11 @@ import (
 	"encoding/csv"
 	"fmt"
 	"net/http"
-	"sort"
 	"time"
 
 	"daily-report/internal/database"
 	"daily-report/internal/model"
+	"daily-report/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -87,243 +87,18 @@ func GetAnalyticsSummary(c *gin.Context) {
 		return
 	}
 
-	db := database.GetDB()
-	var summary AnalyticsSummary
+	// 创建分析服务
+	analyticsService := service.NewAnalyticsService()
 
-	// 设置时间范围
-	summary.TimeRange.StartDate = startDate
-	summary.TimeRange.EndDate = endDate
-	summary.TimeRange.Preset = preset
-
-	// 1. 获取总用户数
-	if err := db.Model(&model.User{}).Count(&summary.TotalUsers).Error; err != nil {
+	// 获取分析摘要
+	summary, err := analyticsService.GetAnalyticsSummary(startDate, endDate, preset)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"message": "获取用户统计失败",
+			"message": fmt.Sprintf("获取统计数据失败: %v", err),
 		})
 		return
 	}
-
-	// 2. 获取总项目数（只统计活动项目）
-	if err := db.Model(&model.Project{}).Where("status = ?", "active").Count(&summary.TotalProjects).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "获取项目统计失败",
-		})
-		return
-	}
-
-	// 3. 获取指定时间范围内的日报数
-	if err := db.Model(&model.Report{}).Unscoped().
-		Where("date >= ? AND date < DATE_ADD(?, INTERVAL 1 DAY) AND deleted_at IS NULL",
-			start.Format("2006-01-02"),
-			end.Format("2006-01-02")).
-		Count(&summary.TotalReports).Error; err != nil {
-		fmt.Printf("获取日报数失败: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "获取日报统计失败",
-		})
-		return
-	}
-	fmt.Printf("找到 %d 条日报记录\n", summary.TotalReports)
-
-	// 4. 获取指定时间范围内的总工时
-	var totalHours float64
-	query := db.Model(&model.Task{}).
-		Joins("JOIN reports ON tasks.report_id = reports.id").
-		Where("reports.date >= ? AND reports.date < DATE_ADD(?, INTERVAL 1 DAY) AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL",
-			start.Format("2006-01-02"),
-			end.Format("2006-01-02")).
-		Select("COALESCE(SUM(tasks.hours), 0)")
-
-	// 打印SQL查询语句
-	sql := query.ToSQL(func(tx *gorm.DB) *gorm.DB {
-		return tx.Where("reports.date >= ? AND reports.date < DATE_ADD(?, INTERVAL 1 DAY)", start.Format("2006-01-02"), end.Format("2006-01-02"))
-	})
-	fmt.Printf("总工时查询SQL: %s\n", sql)
-
-	if err := query.Scan(&totalHours).Error; err != nil {
-		fmt.Printf("获取总工时失败: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "获取工时统计失败",
-		})
-		return
-	}
-	fmt.Printf("总工时: %.1f 小时\n", totalHours)
-	summary.TotalHours = totalHours
-
-	// 5. 获取项目工时分布
-	var projectHours []model.ProjectHoursStat
-	if err := db.Table("tasks").
-		Select("projects.id as project_id, projects.name as project_name, COALESCE(SUM(tasks.hours), 0) as hours").
-		Joins("JOIN reports ON tasks.report_id = reports.id").
-		Joins("JOIN projects ON tasks.project_id = projects.id").
-		Where("reports.date >= ? AND reports.date < DATE_ADD(?, INTERVAL 1 DAY) AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL",
-			start.Format("2006-01-02"),
-			end.Format("2006-01-02")).
-		Group("projects.id, projects.name").
-		Having("hours > 0").
-		Order("hours DESC").
-		Scan(&projectHours).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "获取项目工时统计失败",
-		})
-		return
-	}
-	summary.ProjectHours = projectHours
-
-	// 6. 获取用户工时统计
-	if err := db.Table("tasks").
-		Select("users.username, users.chinese_name, COALESCE(SUM(tasks.hours), 0) as hours").
-		Joins("JOIN reports ON tasks.report_id = reports.id").
-		Joins("JOIN users ON reports.user_id = users.id").
-		Where("reports.date >= ? AND reports.date < DATE_ADD(?, INTERVAL 1 DAY)",
-			start.Format("2006-01-02"),
-			end.Format("2006-01-02")).
-		Group("users.username, users.chinese_name").
-		Having("hours > 0").
-		Order("hours DESC").
-		Scan(&summary.UserHours).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "获取用户工时统计失败",
-		})
-		return
-	}
-
-	// 7. 获取每日项目工时统计
-	currentDate := start
-	for !currentDate.After(end) {
-		dayStart := currentDate
-
-		var dayStats model.ProjectDailyHoursStat
-		dayStats.Date = currentDate.Format("2006-01-02")
-
-		// 获取当天的项目工时
-		var dayProjectHours []model.ProjectHoursStat
-		query := db.Table("tasks").
-			Select("projects.id as project_id, projects.name as project_name, COALESCE(SUM(tasks.hours), 0) as hours").
-			Joins("JOIN reports ON tasks.report_id = reports.id").
-			Joins("JOIN projects ON tasks.project_id = projects.id").
-			Where("reports.date >= ? AND reports.date < DATE_ADD(?, INTERVAL 1 DAY) AND tasks.deleted_at IS NULL AND reports.deleted_at IS NULL",
-				dayStart.Format("2006-01-02"),
-				dayStart.Format("2006-01-02")).
-			Group("projects.id, projects.name").
-			Having("hours > 0").
-			Order("hours DESC")
-
-		// 打印SQL查询语句
-		sql := query.ToSQL(func(tx *gorm.DB) *gorm.DB {
-			return tx.Where("reports.date >= ? AND reports.date < DATE_ADD(?, INTERVAL 1 DAY)", dayStart.Format("2006-01-02"), dayStart.Format("2006-01-02"))
-		})
-		fmt.Printf("查询日期 %s 的SQL: %s\n", dayStart.Format("2006-01-02"), sql)
-
-		if err := query.Scan(&dayProjectHours).Error; err == nil {
-			fmt.Printf("日期 %s 找到 %d 个项目工时记录\n", dayStart.Format("2006-01-02"), len(dayProjectHours))
-			for _, ph := range dayProjectHours {
-				fmt.Printf("  - 项目: %s, 工时: %.1f\n", ph.ProjectName, ph.Hours)
-			}
-			dayStats.ProjectHours = dayProjectHours
-			summary.DailyStats = append(summary.DailyStats, dayStats)
-		} else {
-			fmt.Printf("日期 %s 查询出错: %v\n", dayStart.Format("2006-01-02"), err)
-		}
-
-		currentDate = currentDate.AddDate(0, 0, 1)
-	}
-
-	// 8. 获取日报提交率趋势
-	var submissionStats []struct {
-		Date      string
-		Submitted int64
-		Total     int64
-	}
-
-	if err := db.Raw(`
-        WITH RECURSIVE dates AS (
-            SELECT DATE(?) as date
-            UNION ALL
-            SELECT DATE_ADD(date, INTERVAL 1 DAY)
-            FROM dates
-            WHERE date < DATE(?)
-        )
-        SELECT 
-            dates.date,
-            COUNT(DISTINCT CASE WHEN reports.id IS NOT NULL THEN reports.user_id END) as submitted,
-            COUNT(DISTINCT users.id) as total
-        FROM dates
-        CROSS JOIN users
-        LEFT JOIN reports ON DATE(reports.date) = dates.date AND reports.user_id = users.id
-        WHERE users.created_at <= dates.date
-        GROUP BY dates.date
-        ORDER BY dates.date
-    `, startDate, endDate).
-		Scan(&submissionStats).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "获取提交率统计失败",
-		})
-		return
-	}
-
-	// 计算提交率
-	for _, stat := range submissionStats {
-		if stat.Total > 0 {
-			summary.SubmissionRate = append(summary.SubmissionRate, model.SubmissionRateStat{
-				Date: stat.Date,
-				Rate: float64(stat.Submitted) / float64(stat.Total),
-			})
-		}
-	}
-
-	// 9. 获取用户提交率统计
-	var users []model.User
-	if err := db.Find(&users).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "获取用户列表失败",
-		})
-		return
-	}
-
-	// 计算工作日数量
-	workdays := calculateWorkdays(start, end)
-
-	// 获取每个用户在时间范围内的提交记录
-	for _, user := range users {
-		var submittedCount int64
-		if err := db.Model(&model.Report{}).
-			Where("user_id = ? AND date >= ? AND date < DATE_ADD(?, INTERVAL 1 DAY) AND deleted_at IS NULL",
-				user.ID, start.Format("2006-01-02"), end.Format("2006-01-02")).
-			Count(&submittedCount).Error; err != nil {
-			continue
-		}
-
-		stat := model.UserSubmissionStat{
-			Username:      user.Username,
-			ChineseName:   user.ChineseName,
-			TotalWorkdays: workdays,
-			SubmittedDays: int(submittedCount),
-			MissingDays:   workdays - int(submittedCount),
-		}
-
-		// 处理边缘情况：如果没有工作日，设置提交率为1.0（100%）
-		if workdays == 0 {
-			stat.SubmissionRate = 1.0
-		} else {
-			stat.SubmissionRate = float64(submittedCount) / float64(workdays)
-		}
-
-		summary.UserSubmissions = append(summary.UserSubmissions, stat)
-	}
-
-	// 按提交率降序排序
-	sort.Slice(summary.UserSubmissions, func(i, j int) bool {
-		return summary.UserSubmissions[i].SubmissionRate > summary.UserSubmissions[j].SubmissionRate
-	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

@@ -362,8 +362,19 @@
                         result.end = sunday;
                         break;
                     case 'month':
+                        // 获取当月第一天
                         result.start = new Date(today.getFullYear(), today.getMonth(), 1);
+                        // 获取当月最后一天 (下个月的第0天就是当月的最后一天)
                         result.end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                        
+                        // 调试信息
+                        console.log('本月日期范围:', {
+                            start: result.start.toISOString().split('T')[0],
+                            end: result.end.toISOString().split('T')[0],
+                            year: today.getFullYear(),
+                            month: today.getMonth(),
+                            lastDay: new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+                        });
                         break;
                     case 'quarter':
                         const quarter = Math.floor(today.getMonth() / 3);
@@ -401,7 +412,11 @@
             }
 
             formatDate(date) {
-                return date.toISOString().split('T')[0];
+                // 确保日期格式正确，使用UTC避免时区问题
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
             }
         }
 
@@ -430,8 +445,16 @@
                 })
                 .then(data => {
                     if (data.success) {
+                        // 直接使用后端提供的预计算数据
+                        summaryData = data.data; // 保存到全局变量
+                        
+                        // 更新UI
                         updateStatCards(data.data);
-                        updateCharts(data.data);
+                        
+                        // 渲染图表 - 直接使用后端计算好的数据
+                        renderProjectHoursChart(data.data.project_hours);
+                        createProjectTrendChart(data.data);
+                        createUserHoursChart(data.data);
                     } else {
                         throw new Error(data.message || '加载数据失败');
                     }
