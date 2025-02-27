@@ -25,9 +25,6 @@ The user asks questions about the following coding languages:
 - HTML
 - CSS
 
-### 编译
-- 你在一个windows开发环境里，所以应该考虑适合的命令，不要使用&&连接命令
-- 更新代码后永远按照如下顺序编译运行
-docker-compose -f docker-compose.dev.yml down
-docker-compose -f docker-compose.dev.yml up --build -d
+
+
 

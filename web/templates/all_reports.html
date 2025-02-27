@@ -24,8 +24,16 @@
     <div class="container mt-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div></div>
-            <div>
-                <div class="input-group">
+            <div class="d-flex align-items-center">
+                <div class="me-2">
+                    <select class="form-select" id="dateRangeSelect" onchange="handleDateRangeChange()">
+                        <option value="week" selected>本周</option>
+                        <option value="today">本日</option>
+                        <option value="month">本月</option>
+                        <option value="custom">自定义</option>
+                    </select>
+                </div>
+                <div class="input-group" id="customDateRange" style="display: none;">
                     <input type="date" class="form-control" id="startDate">
                     <span class="input-group-text">至</span>
                     <input type="date" class="form-control" id="endDate">
@@ -54,6 +62,29 @@
                             <!-- 日报列表将通过JavaScript动态加载 -->
                         </tbody>
                     </table>
+                </div>
+                
+                <!-- 分页控件 -->
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div>
+                        <span id="pageInfo">第 <span id="currentPage">1</span> 页，共 <span id="totalPages">1</span> 页</span>
+                    </div>
+                    <div>
+                        <nav aria-label="日报分页">
+                            <ul class="pagination mb-0">
+                                <li class="page-item" id="prevPageBtn">
+                                    <a class="page-link" href="javascript:void(0)" onclick="goToPage(currentPageNum-1)">
+                                        <i class="bi bi-chevron-left"></i> 上一页
+                                    </a>
+                                </li>
+                                <li class="page-item" id="nextPageBtn">
+                                    <a class="page-link" href="javascript:void(0)" onclick="goToPage(currentPageNum+1)">
+                                        下一页 <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
                 </div>
             </div>
         </div>
@@ -112,10 +143,35 @@
             gfm: true     // 启用GitHub风格的Markdown
         });
 
+        // 分页变量
+        let currentPageNum = 1;
+        let totalPagesNum = 1;
+        const PAGE_SIZE = 50; // 每页显示50条记录
+        
+        // 当前选中的日期范围类型
+        let currentDateRangeType = 'week'; // 默认为本周
+
         // 格式化日期时间
         function formatDateTime(dateStr) {
             const date = new Date(dateStr);
             return date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+        }
+        
+        // 格式化日期为YYYY-MM-DD格式
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // 获取本日的日期范围
+        function getTodayDates() {
+            const today = new Date();
+            return {
+                start: formatDate(today),
+                end: formatDate(today)
+            };
         }
 
         // 获取本周的起始日期和结束日期
@@ -131,20 +187,96 @@
             sunday.setHours(23, 59, 59, 999);
 
             return {
-                start: monday.toISOString().split('T')[0],
-                end: sunday.toISOString().split('T')[0]
+                start: formatDate(monday),
+                end: formatDate(sunday)
             };
         }
-
+        
+        // 获取本月的起始日期和结束日期
+        function getCurrentMonthDates() {
+            const now = new Date();
+            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+            const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            
+            return {
+                start: formatDate(firstDay),
+                end: formatDate(lastDay)
+            };
+        }
+        
+        // 处理日期范围选择变化
+        function handleDateRangeChange() {
+            const select = document.getElementById('dateRangeSelect');
+            const rangeType = select.value;
+            
+            if (rangeType === 'custom') {
+                // 显示自定义日期范围输入框
+                document.getElementById('customDateRange').style.display = 'flex';
+                // 如果之前没有设置过日期，则设置默认值为本周
+                if (!document.getElementById('startDate').value) {
+                    const weekDates = getCurrentWeekDates();
+                    document.getElementById('startDate').value = weekDates.start;
+                    document.getElementById('endDate').value = weekDates.end;
+                }
+            } else {
+                // 隐藏自定义日期范围输入框
+                document.getElementById('customDateRange').style.display = 'none';
+                // 根据选择的范围类型加载数据
+                selectDateRange(rangeType);
+            }
+        }
+        
+        // 选择日期范围
+        function selectDateRange(rangeType) {
+            currentDateRangeType = rangeType;
+            let dateRange;
+            
+            switch(rangeType) {
+                case 'today':
+                    dateRange = getTodayDates();
+                    break;
+                case 'week':
+                    dateRange = getCurrentWeekDates();
+                    break;
+                case 'month':
+                    dateRange = getCurrentMonthDates();
+                    break;
+                default:
+                    return; // 自定义范围不在这里处理
+            }
+            
+            // 更新日期输入框
+            document.getElementById('startDate').value = dateRange.start;
+            document.getElementById('endDate').value = dateRange.end;
+            
+            // 加载日报
+            loadReports(dateRange.start, dateRange.end, 1);
+        }
+        
         // 加载日报列表
-        function loadReports(startDate, endDate) {
-            fetch(`/api/admin/reports?start_date=${startDate}&end_date=${endDate}`)
+        function loadReports(startDate, endDate, page = 1) {
+            // 更新当前页码
+            currentPageNum = page;
+            
+            // 构建API URL，添加分页参数
+            const url = `/api/admin/reports?start_date=${startDate}&end_date=${endDate}&page=${page}&page_size=${PAGE_SIZE}`;
+            
+            fetch(url)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
                         const reportList = document.getElementById('reportList');
                         reportList.innerHTML = '';
                         
+                        // 更新分页信息
+                        totalPagesNum = Math.ceil(data.total / PAGE_SIZE) || 1;
+                        document.getElementById('currentPage').textContent = currentPageNum;
+                        document.getElementById('totalPages').textContent = totalPagesNum;
+                        
+                        // 更新分页按钮状态
+                        updatePaginationButtons();
+                        
+                        // 渲染日报列表
                         data.data.forEach(report => {
                             const tasksHtml = report.tasks.map(task => `
                                 <div class="mb-2">
@@ -178,11 +310,68 @@
                                 </tr>
                             `;
                         });
+                        
+                        // 如果没有数据，显示提示信息
+                        if (data.data.length === 0) {
+                            reportList.innerHTML = `
+                                <tr>
+                                    <td colspan="5" class="text-center py-4">
+                                        <div class="text-muted">
+                                            <i class="bi bi-info-circle me-2"></i>该时间范围内没有日报记录
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }
                     }
                 })
                 .catch(error => {
                     console.error('加载日报列表失败:', error);
+                    document.getElementById('reportList').innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center py-4">
+                                <div class="text-danger">
+                                    <i class="bi bi-exclamation-triangle me-2"></i>加载失败，请重试
+                                </div>
+                            </td>
+                        </tr>
+                    `;
                 });
+        }
+        
+        // 更新分页按钮状态
+        function updatePaginationButtons() {
+            const prevBtn = document.getElementById('prevPageBtn');
+            const nextBtn = document.getElementById('nextPageBtn');
+            
+            // 禁用/启用上一页按钮
+            if (currentPageNum <= 1) {
+                prevBtn.classList.add('disabled');
+            } else {
+                prevBtn.classList.remove('disabled');
+            }
+            
+            // 禁用/启用下一页按钮
+            if (currentPageNum >= totalPagesNum) {
+                nextBtn.classList.add('disabled');
+            } else {
+                nextBtn.classList.remove('disabled');
+            }
+        }
+        
+        // 跳转到指定页
+        function goToPage(page) {
+            // 验证页码范围
+            if (page < 1 || page > totalPagesNum) {
+                return;
+            }
+            
+            // 获取当前日期范围
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            // 加载指定页的数据
+            loadReports(startDate, endDate, page);
         }
 
         // 查看日报详情
@@ -265,7 +454,8 @@
                 return;
             }
 
-            loadReports(startDate, endDate);
+            // 重置为第一页
+            loadReports(startDate, endDate, 1);
         }
 
         // 处理退出登录
@@ -290,13 +480,8 @@
 
         // 页面加载时初始化
         document.addEventListener('DOMContentLoaded', function() {
-            // 设置默认日期范围为本周
-            const weekDates = getCurrentWeekDates();
-            document.getElementById('startDate').value = weekDates.start;
-            document.getElementById('endDate').value = weekDates.end;
-            
-            // 加载本周的日报
-            loadReports(weekDates.start, weekDates.end);
+            // 默认选择本周日期范围
+            selectDateRange('week');
         });
     </script>
 </body>

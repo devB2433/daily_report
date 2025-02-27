@@ -593,16 +593,44 @@ func GetAllReports(c *gin.Context) {
 		return
 	}
 
+	// 获取分页参数
+	page := 1
+	pageSize := 50 // 默认每页50条记录
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		if pageNum, err := strconv.Atoi(pageStr); err == nil && pageNum > 0 {
+			page = pageNum
+		}
+	}
+
+	if pageSizeStr := c.Query("page_size"); pageSizeStr != "" {
+		if pageSizeNum, err := strconv.Atoi(pageSizeStr); err == nil && pageSizeNum > 0 {
+			pageSize = pageSizeNum
+		}
+	}
+
+	// 计算偏移量
+	offset := (page - 1) * pageSize
+
 	db := database.GetDB()
 	var reports []model.Report
+	var total int64
 
-	// 查询指定时间范围内的所有日报
-	query := db.Model(&model.Report{}).
+	// 构建基础查询
+	baseQuery := db.Model(&model.Report{}).
+		Where("date >= ? AND date < DATE_ADD(?, INTERVAL 1 DAY)", startDate, endDate)
+
+	// 获取总记录数
+	baseQuery.Count(&total)
+
+	// 查询指定时间范围内的所有日报，带分页
+	query := baseQuery.
 		Preload("Tasks").
 		Preload("Tasks.Project").
 		Preload("User").
-		Where("date >= ? AND date < DATE_ADD(?, INTERVAL 1 DAY)", startDate, endDate).
-		Order("date DESC, user_id ASC")
+		Order("date DESC, user_id ASC").
+		Limit(pageSize).
+		Offset(offset)
 
 	if err := query.Find(&reports).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -613,7 +641,10 @@ func GetAllReports(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    reports,
+		"success":  true,
+		"data":     reports,
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
 	})
 }
